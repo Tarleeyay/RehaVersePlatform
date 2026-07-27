@@ -1,0 +1,66 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What this is
+
+RehaVerse — a single-page prototype UI for an adaptive pediatric hand-rehabilitation platform ("RehaBall"). It is a static, dependency-free site: `index.html` + `style.css` + `app.js`. There is no build step, no bundler, no package.json, and no test suite — open `index.html` directly in a browser (or serve the folder statically) to run it.
+
+Everything (state, screens, simulation engine, charts, particle FX) lives in the single `app.js` file (~1150 lines, minified/dense style — no semicolons-as-style-choice, short var names). Read `app.js` in sections by grep-ing the section header comments (`/* === ... === */`) rather than loading it all at once.
+
+## Running / deploying
+
+- **Local**: just open `index.html` in a browser. No install, no dev server required.
+- **Hosting**: dual-deployed — GitHub Pages (existing) and Vercel at https://reha-verse-platform.vercel.app/ (project repo: `github.com/Tarleeyay/RehaVersePlatform`, auto-deploys on every push to `main`; `Framework Preset: Other`, no build command). Root-level `vercel.json` (mirrors `docs/vercel.json`) sets `Cache-Control`/security headers for `index.html`, `app.js`, `style.css`. The two hosts do **not** share `localStorage` (different origins) — profile data created on one won't appear on the other.
+- **Graphify**: this repo has a `/graphify` knowledge graph set up (`graphify-out/`). Per user's global CLAUDE.md, treat questions about codebase structure as graphify queries first (`graphify query "..."`, `graphify path`, `graphify explain`) before grepping file-by-file — see `docs/SETUP.md` §2–3 for query examples specific to this repo.
+
+## Architecture (app.js)
+
+The whole app is a hand-rolled SPA with no framework:
+
+- **State**: `S` (current screen/session UI state: `screen`, `p` (active profile), `sel`, `live`, `draft`) and `H` (trial history + `engine` for the currently loaded profile). `G` holds live game/canvas state (force, target, rAF handle).
+- **Routing/rendering**: `SC` is an object mapping screen name → template function (`SC.login`, `SC.pick`, `SC.home`, `SC.game`, `SC.dash`, `SC.editor`, etc.). `render()` does `$('root').innerHTML = SC[S.screen]()` then re-renders `topbar()`. There's no vdom/diffing — every screen change is a full innerHTML replace.
+- **Event handling**: fully delegated. Two document-level listeners (`click`, `input`) at the bottom of the file dispatch on `data-*` attributes in the rendered HTML (`data-go`, `data-kid`, `data-mode`, `data-level`, `data-path`, etc.) rather than binding handlers per element.
+- **Persistence**: `PROFILES` (array of child profiles) is loaded/saved to `localStorage` under key `rehaverse.profiles.v1` via `loadStore()`/`saveStore()`. Falls back to `SEED_PROFILES` if storage is empty/unavailable (e.g. private browsing).
+- **Adaptive engine** (`newEngine`, `updateEngine`, `DIMS`, `PRIORITY`): drives real-time difficulty adjustment. `updateEngine()` looks at the rolling mean of the last 5 trial results and steps one of `PRIORITY` dimensions (`hold_time` → `tolerance_band` → `target_force`) up or down via `stepDim()`, escalating priority once a dimension is maxed out (`maxedOut()`).
+- **Simulation engine** (`simulate()`, `mulberry32()`, `loadOf()`): generates a deterministic fake trial history for a profile (seeded PRNG from `hash(p.code)`) so the dashboard/charts have data to show without a real device connected. This is prototype scaffolding, not real sensor ingestion — real hardware would come from FSR/IMU/camera per `docs/SETUP.md`'s sensing section.
+- **Recommendation engine** (`recommendScores()`, `recommendMode()`, `REC_W1`/`REC_W2`): scores toy/game/hybrid mode fit from `ability`, `screenEngagement`, `attentionSpan` using fixed weights.
+- **Charts/visuals**: `chartConvergence()`, `chartDifficulty()`, `radar()`, `spark()`, `heat()` render inline SVG/canvas from trial history — no charting library. `FX` is a canvas particle system for game-screen rewards (bursts, rings, sparks), driven by its own `step()`/`draw()` loop.
+- **Editor**: `openEditor()` / `SC.editor` + `edPreview()` let a caregiver create/edit a child profile (`data-path`-driven inputs write into `S.draft` via `getPath`/`setPath`).
+
+## Known active inconsistency: FSR sensor count
+
+The number of force sensors (FSR) is currently **inconsistent across the codebase** — this is a real, unresolved data-integrity issue (not hypothetical), tracked in `docs/SETUP.md` §3 and Prompt 2:
+
+- `app.js` text/UI says **12** sensors in several places (`heat()` section, `METHODS` GDI description, Level 5 "Magic Garden" description, line ~1037, ~1060).
+- The GDI formula in `METHODS` uses `H_max = log(12)` (~line 927), tied to a 12-slot `heat()` visualization (ring layout).
+- The actual hardware has **6** sensors clustered on the finger-contact side (not a ring around the ball).
+- `docs/hardware.md` (referenced in SETUP.md as the planned home for the real spec) does not exist yet in this repo.
+
+If asked to fix sensor counts, `docs/SETUP.md` §"Prompt 2" has the exact required edits (text strings, the `log(12)`→`log(6)` formula change, and reworking `heat()` from a ring layout to a clustered layout since sensors don't surround the ball). Don't assume "12" is authoritative anywhere in `app.js` — verify against intent before propagating it.
+
+## Language / audience notes
+
+- UI copy and code comments are in Thai; `index.html` sets `lang="th"`. Keep new user-facing strings and comments consistent with the existing Thai copy unless told otherwise.
+- **Design system (child face):** an outdoor adventure scene, not a website — sky gradient on `body`, plus a fixed `.scene` layer in `index.html` holding the sun mascot (`#i-mascot`), drifting clouds and grass hills (`display:none` on the pro face). Cards are white with 4px white borders and hard offset shadows (`--pop`/`--pop-2`) for a game feel. Tokens: `--sun`/`--grass`/`--grape`/`--berry`/`--aqua`, each with a `-soft`/`-deep` pair. **Prompt** (`--fd`) headings, **IBM Plex Sans Thai** (`--fb`) body. The pro face keeps its clinical `--pro-*` palette; don't leak child tokens into `dash`/`editor`.
+- **`SC.landing` is the entry screen** (`S.screen` starts at `'landing'`): hero copy left, product shot right, CTA into `login`. Its image `rehaball.png` is a **derived asset** — a transparent cutout made from a 3D render by corner flood-fill; there is no source file in the repo, so regenerate it from a fresh export if it ever needs changing.
+- **The sun mascot is inlined in `index.html`, not `<use href="#i-mascot">`** — `<use>` clones into a shadow tree, so the pupils can't be addressed. The `eyesFollowCursor()` IIFE at the bottom of `app.js` binds once (the mascot lives outside `#root`, so `render()` never replaces it) and writes `transform` straight from the pointer handler rather than via `requestAnimationFrame`, because rAF is suspended while a tab is hidden and would leave the eyes frozen.
+- Clouds need the nested `<i>`: `.cl` carries the horizontal `drift` and `.cl i` the vertical `wave`. Two animations can't both drive `transform` on one element, so the layers must stay split.
+- **The level map (`SC.home`) is the centrepiece.** `ROAD` holds 8 stop coordinates in a `1000x380` viewBox; `smoothPath()` (Catmull-Rom → cubic bezier) draws a road that passes exactly through them, and stops are placed with those same coords converted to percentages — so everything scales together. `mountRoad()` (called from `render()`) animates the kid's avatar along the road by sampling the **real** `<path>` with `getPointAtLength`, which is why it tracks the curve at any size. Don't switch this to CSS `offset-path`: that takes CSS pixels, not SVG user units, so it drifts as soon as the container isn't exactly 1000px wide. Level detail, goal, adaptation and other modes all live in the single `.quest` card below the map.
+- **No emoji in the UI — this is deliberate, don't reintroduce them.** Every icon comes from the SVG sprite of `<symbol>`s at the top of `index.html`, rendered via the `ico(name, extraClass)` helper in `app.js` (`<svg class="ic" viewBox="0 0 24 24"><use href="#i-name"/></svg>`). Emoji were removed because they overflow their line box (a 60px box rendered a 69px glyph), render differently per OS, and read as machine-generated. Icon keys live in the data itself: `LEVELS[].em`, `MODE_META[].em`, `SKILLS[].icon`, `DIMS[].ico`, `AVATARS`. Add a `<symbol>` before referencing a new name.
+- `AVATARS` are icon keys (`star`, `moon`, …), but profiles saved in `localStorage` before this change hold emoji — `AV_OLD`/`avKey()` migrate them on read. Always pass avatars through `avKey()`.
+- Three things bite when editing this UI:
+  - **Thai has no spaces between words**, so a long label will not wrap and will punch out of its container. `body` sets `overflow-wrap:break-word` globally and `.station b` adds `overflow-wrap:anywhere`; keep that in mind for any new fixed-width box.
+  - **Thai needs generous `line-height` (~1.4+)** — upper vowels and tone marks stack above the baseline and collide with the line above at tighter values.
+  - **Scope descendant selectors that target `svg`.** `.skilltree svg{position:absolute;inset:0}` silently matched every inline icon and stretched them across their parent; it must be `.skilltree>svg` (same for `.gamewrap>svg`).
+  - **Child and pro share one stylesheet, so class names collide.** The child "recommended" card modifier was `.rec`, which the pro dashboard also uses for recommendation rows (`padding:12px 0`) — defined later, so it won won and silently killed the card's horizontal padding, pushing text to the border. It's now `.reco`. Prefix new child-face modifiers rather than reusing short generic names.
+  - **A `max-width` on a centred block shifts its text off-centre.** `.kh` is capped at `60ch`, so on `.center` screens the heading centred inside that narrower block and sat ~80px left of the cards below it. `.center .kh{max-width:none;margin-inline:auto}` fixes it — watch for this whenever a constrained block sits above a wider one.
+  - **White text on the light sky fails contrast** (measured 1.52:1). Headings on the scene use `--ink` with a white text-shadow; `.eyebrow` is a solid `--grape` pill with white text. Verified: h1/body/footer/logo 7.97:1, eyebrow 4.86:1, play button 7.37:1, "next" bubble 4.9:1.
+- Motion (cloud drift + wave, mascot bob, sun-ray spin, ball float, stop pop-in, current-stop pulse, the traveller's journey, the page wipe) is all disabled under `prefers-reduced-motion`, and the clouds carry static fallback positions.
+  - **To preview the motion without changing an OS setting, load `?motion=1`** (`?motion=0` clears it; the choice persists in `localStorage` under `rehaverse.motion`). It sets `html[data-motion="on"]`, which the reduced-motion block excludes via `html:not([data-motion="on"])`. Real users' preferences are still respected by default — don't "fix" a report of missing animation by deleting the media query.
+  - Note that CSS animations are also **paused in hidden/background tabs**, so automated checks through a non-visible tab will read frozen `transform` values even when everything is configured correctly. Verify by comparing the computed offset against the animation's negative delay rather than by sampling movement over time.
+- Screen changes route through `render()`, which plays a curtain over `#wipe`: it sweeps in, swaps the DOM behind it via `paint()`, then sweeps out. It uses `setTimeout` rather than `animationend`, because with animations disabled the event never fires and the swap would hang. `paint()` is the plain no-transition render — call that directly if you need an instant redraw.
+  - Five styles (`curtain`, `iris`, `doors`, `blob`, `stripes`) and five tints are picked at random per navigation via `pickNot()`, which never repeats the previous choice. The style becomes a `s-<name>` class on `#wipe` and the colour a `--tint` custom property; `#wipe` holds two panels (`.p1`/`.p2`) since `doors` and `stripes` need a pair. To add a style, add its `.wipe.s-x` rules plus `.in`/`.out` keyframes and push the name onto `WIPE_STYLES`.
+- The landing render is a photoreal image on a flat-vector page, so it's integrated deliberately: a stack of eight `drop-shadow()` passes traces a white sticker outline around the alpha (baking it into the PNG would work too, but this stays tweakable), with a rotating dashed ring and flat confetti behind it in `.artbg`. `.artwrap` exists purely to size a positioning context to the image so that backdrop can centre on the ball rather than the column.
+- Contrast is verified, not eyeballed: body 5.9:1, eyebrow 4.9:1, the 9.5px `LEVEL` label 5.2:1, footer 4.6:1, primary button 5.5:1. `--primary` and `--ink-3` are tuned specifically to clear 4.5:1 on `--bg`, so darken rather than lighten them.
+- The UI has two "faces" toggled via `document.body.dataset.face` (`child` vs `pro`) — screens under `dash`/`editor` are the caregiver/clinician-facing "pro" view; the rest are the child-facing view. Keep this distinction in mind when editing copy or styling — tone and information density differ deliberately between the two.

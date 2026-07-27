@@ -1,0 +1,7 @@
+# Graphify writes these on every run. If Claude Code can see them,
+# every rebuild invalidates its prompt cache and forces a full re-upload.
+graph.json
+graphify-out/
+
+.vercel/
+node_modules/

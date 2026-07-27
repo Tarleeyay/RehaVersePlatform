@@ -1,0 +1,17 @@
+# .gitignore is already respected automatically — this only excludes MORE.
+
+graphify-out/
+.vercel/
+node_modules/
+
+# 3D renders and slide exports: large binaries, nothing to extract
+*.pptx
+*.png
+*.jpg
+*.jpeg
+*.stl
+*.step
+*.f3d
+
+# Keep .md and .pdf indexed on purpose — that is where the design decisions
+# live, and cross-linking them to app.js is the whole point.

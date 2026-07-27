@@ -7,57 +7,71 @@ const clamp=(v,a,b)=>Math.min(b,Math.max(a,v));
 const mean=a=>a.length?a.reduce((s,x)=>s+x,0)/a.length:0;
 const r1=v=>Math.round(v*10)/10;
 const $=id=>document.getElementById(id);
+/* ไอคอนทั้งหมดมาจาก sprite ใน index.html — ไม่ใช้อิโมจิ เพราะอิโมจิล้นกล่องบรรทัด
+   และหน้าตาต่างกันในแต่ละระบบปฏิบัติการ */
+const ico=(n,c='')=>`<svg class="ic${c?' '+c:''}" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-${n}"/></svg>`;
 
 /* ---------- มิติความยากที่ระบบปรับได้ ---------- */
 const DIMS={
- target_force  :{min:20,max:70,step:5,   harder:+1,label:'แรงเป้าหมาย',        unit:'%F_work',kidUp:'บีบแรงขึ้นอีกนิด',      kidDn:'บีบเบาลงได้',        ico:'💪'},
- tolerance_band:{min:4, max:20,step:2,   harder:-1,label:'ความกว้างช่วงเป้า',  unit:'±%',     kidUp:'ช่องเป้าหมายแคบลง',    kidDn:'ช่องเป้าหมายกว้างขึ้น',ico:'🎯'},
- hold_time     :{min:0.5,max:4,step:0.5, harder:+1,label:'เวลาค้างแรง',        unit:'วิ',     kidUp:'ค้างนานขึ้น',          kidDn:'ค้างสั้นลง',          ico:'⏳'},
- target_size   :{min:8, max:26,step:3,   harder:-1,label:'ขนาดเป้าหมาย',       unit:'% จอ',  kidUp:'เป้าเล็กลง',           kidDn:'เป้าใหญ่ขึ้น',        ico:'⭕'},
- reps          :{min:3, max:12,step:1,   harder:+1,label:'จำนวนภารกิจต่อรอบ',  unit:'ครั้ง',  kidUp:'ภารกิจเยอะขึ้น',       kidDn:'ภารกิจน้อยลง',        ico:'🔁'},
- directions    :{min:1, max:6, step:1,   harder:+1,label:'ทิศทางการเคลื่อนไหว',unit:'ทิศ',    kidUp:'ต้องเอื้อมหลายทางขึ้น',kidDn:'เอื้อมทางเดียวพอ',    ico:'🧭'},
- react_window  :{min:1, max:3, step:0.25,harder:-1,label:'ช่วงเวลาตอบสนอง',    unit:'วิ',     kidUp:'ต้องรีบขึ้น',          kidDn:'มีเวลาคิดนานขึ้น',    ico:'⚡'},
- contact_zones :{min:2, max:8, step:1,   harder:+1,label:'จำนวนโซนสัมผัส',     unit:'โซน',    kidUp:'ใช้มือหลายส่วนขึ้น',   kidDn:'ใช้มือน้อยส่วนลง',    ico:'🖐️'},
+ target_force  :{min:20,max:70,step:5,   harder:+1,label:'แรงเป้าหมาย',        unit:'%F_work',kidUp:'บีบแรงขึ้นอีกนิด',      kidDn:'บีบเบาลงได้',        ico:'dumbbell'},
+ tolerance_band:{min:4, max:20,step:2,   harder:-1,label:'ความกว้างช่วงเป้า',  unit:'±%',     kidUp:'ช่องเป้าหมายแคบลง',    kidDn:'ช่องเป้าหมายกว้างขึ้น',ico:'target'},
+ hold_time     :{min:0.5,max:4,step:0.5, harder:+1,label:'เวลาค้างแรง',        unit:'วิ',     kidUp:'ค้างนานขึ้น',          kidDn:'ค้างสั้นลง',          ico:'hourglass'},
+ target_size   :{min:8, max:26,step:3,   harder:-1,label:'ขนาดเป้าหมาย',       unit:'% จอ',  kidUp:'เป้าเล็กลง',           kidDn:'เป้าใหญ่ขึ้น',        ico:'circle-dot'},
+ reps          :{min:3, max:12,step:1,   harder:+1,label:'จำนวนภารกิจต่อรอบ',  unit:'ครั้ง',  kidUp:'ภารกิจเยอะขึ้น',       kidDn:'ภารกิจน้อยลง',        ico:'repeat'},
+ directions    :{min:1, max:6, step:1,   harder:+1,label:'ทิศทางการเคลื่อนไหว',unit:'ทิศ',    kidUp:'ต้องเอื้อมหลายทางขึ้น',kidDn:'เอื้อมทางเดียวพอ',    ico:'compass'},
+ react_window  :{min:1, max:3, step:0.25,harder:-1,label:'ช่วงเวลาตอบสนอง',    unit:'วิ',     kidUp:'ต้องรีบขึ้น',          kidDn:'มีเวลาคิดนานขึ้น',    ico:'bolt'},
+ contact_zones :{min:2, max:8, step:1,   harder:+1,label:'จำนวนโซนสัมผัส',     unit:'โซน',    kidUp:'ใช้มือหลายส่วนขึ้น',   kidDn:'ใช้มือน้อยส่วนลง',    ico:'hand'},
 };
 
 /* ---------- roadmap ---------- */
 const LEVELS=[
- {n:1,em:'🌱',th:'สำรวจและเอื้อม',name:'Explore & Reach',goal:'สร้างความคุ้นเคยกับการใช้มือ เปิดมือ เอื้อม และปล่อยวัตถุ',adapts:['target_size','reps','directions'],modes:{
+ {n:1,em:'compass',th:'สำรวจและเอื้อม',name:'Explore & Reach',goal:'สร้างความคุ้นเคยกับการใช้มือ เปิดมือ เอื้อม และปล่อยวัตถุ',adapts:['target_size','reps','directions'],modes:{
    toy:{name:'Shape Explorer',desc:'กล่องหยอดรูปทรงขนาดใหญ่ หยิบบล็อก หมุนให้ตรงมุม แล้วใส่ลงช่อง เซนเซอร์ในกล่องบอกว่าใส่ถูกช่องไหมและใช้เวลาเท่าไร',skills:['Reach','Grasp','Release','Wrist rotation']},
    game:{name:'Shape Match',desc:'กล้องตรวจจับมือ เด็กเอื้อมไปหยิบรูปทรงบนหน้าจอ แล้วลากไปใส่ช่องที่ตรงกัน',skills:['Hand tracking','Visual attention','Reach']},
    both:{name:'Magic Portal',desc:'ถือบล็อกจริงในมือ กล้อง AI ตรวจจับ พอหย่อนลงกล่อง บ้านบนหน้าจอสร้างเสร็จทันที',skills:['Reach','Release','Cause–effect']}}},
- {n:2,em:'🌼',th:'เริ่มบีบ',name:'Grip Control',goal:'เริ่มฝึกการบีบ ให้เด็กรู้ว่ามือตัวเองสั่งงานได้',adapts:['target_force','hold_time','reps'],modes:{
+ {n:2,em:'hand',th:'เริ่มบีบ',name:'Grip Control',goal:'เริ่มฝึกการบีบ ให้เด็กรู้ว่ามือตัวเองสั่งงานได้',adapts:['target_force','hold_time','reps'],modes:{
    toy:{name:'Squeeze Animal',desc:'ของเล่นนิ่ม บีบแล้วสัตว์ร้อง มี LED เปลี่ยนสีตามแรงบีบ',skills:['Grip initiation','Force awareness']},
    game:{name:'Bubble Pop',desc:'กล้องตรวจการกำมือ เด็กกำมือเพื่อแตกฟองบนหน้าจอ ใช้ได้แม้ยังถือลูกบอลไม่ได้',skills:['Hand closing','Timing'],playable:true},
    both:{name:'Bubble Rescue',desc:'บีบ RehaBall ให้ถึงช่วงแรงเป้าหมายแล้วค้างไว้ ฟองแตก สัตว์ได้รับการช่วยเหลือ',skills:['Grip initiation','Grip endurance','Force stability'],playable:true}}},
- {n:3,em:'🚀',th:'คุมแรงให้แม่น',name:'Force Control',goal:'ควบคุมแรงให้อยู่ในช่วงที่กำหนด ไม่ใช่บีบให้แรงที่สุด',adapts:['target_force','tolerance_band','hold_time'],modes:{
+ {n:3,em:'target',th:'คุมแรงให้แม่น',name:'Force Control',goal:'ควบคุมแรงให้อยู่ในช่วงที่กำหนด ไม่ใช่บีบให้แรงที่สุด',adapts:['target_force','tolerance_band','hold_time'],modes:{
    toy:{name:'Rocket Pump',desc:'ของเล่นมีเกจแรงแบบเข็ม เด็กบีบให้เข็มค้างอยู่ในแถบสีเขียว',skills:['Graded force','Visual matching']},
    game:{name:'Rocket Simulator',desc:'กล้องวัดระดับการกำมือ ใช้บังคับความสูงของจรวดให้บินผ่านวงแหวน',skills:['Graded hand closing']},
    both:{name:'Rocket Power',desc:'แรงบีบแปลงเป็นความสูงของจรวดโดยตรง ต้องเพิ่มและลดแรงตามตำแหน่งวงแหวน',skills:['Force modulation','Controlled release']}}},
- {n:4,em:'🎯',th:'จังหวะและการปล่อย',name:'Timing & Release',goal:'ฝึกจังหวะ บีบให้ทัน และปล่อยให้ตรงเวลา',adapts:['react_window','reps','target_size'],modes:{
+ {n:4,em:'hourglass',th:'จังหวะและการปล่อย',name:'Timing & Release',goal:'ฝึกจังหวะ บีบให้ทัน และปล่อยให้ตรงเวลา',adapts:['react_window','reps','target_size'],modes:{
    toy:{name:'Light Catch',desc:'ไฟติดขึ้นแบบสุ่ม เด็กต้องบีบและปล่อยให้ทันก่อนไฟดับ',skills:['Reaction time','Release control']},
    game:{name:'Feed Monster',desc:'กล้องตรวจการอ้า–หุบมือ ใช้เปิดปากสัตว์ประหลาดให้ตรงจังหวะ',skills:['Hand opening','Timing']},
    both:{name:'Feed Monster+',desc:'บีบเพื่อเปิดปาก ค้างไว้จนอาหารมาถึง แล้วคลายมือให้อาหารตกลงพอดี',skills:['Reaction time','Grip–release cycle']}}},
- {n:5,em:'🌳',th:'รูปแบบการจับ',name:'Grip Pattern',goal:'กระจายแรงรอบมือ ไม่กระจุกอยู่จุดเดียว',adapts:['contact_zones','hold_time','reps'],modes:{
+ {n:5,em:'grid',th:'รูปแบบการจับ',name:'Grip Pattern',goal:'กระจายแรงรอบมือ ไม่กระจุกอยู่จุดเดียว',adapts:['contact_zones','hold_time','reps'],modes:{
    toy:{name:'Texture Ball',desc:'ลูกบอลหลายพื้นผิวในลูกเดียว เด็กลองจับหลายแบบ',skills:['Tactile awareness','Grip diversity']},
    game:{name:'Magic Garden Lite',desc:'กล้องตรวจรูปทรงของมือ เปลี่ยนท่ามือให้พืชโตต่างชนิดกัน',skills:['Hand shaping','Finger extension']},
    both:{name:'Magic Garden',desc:'Heat Map จากเซนเซอร์ 12 จุด ต้นไม้โตตามรูปแบบการกระจายแรง ไม่ใช่ตามความแรง',skills:['Contact distribution','Grip diversity']}}},
- {n:6,em:'🏴',th:'เคลื่อนแขนพร้อมคุมมือ',name:'Functional Movement',goal:'ใช้มือร่วมกับการเคลื่อนไหวแขนและลำตัว',adapts:['directions','target_size','reps'],modes:{
+ {n:6,em:'waves',th:'เคลื่อนแขนพร้อมคุมมือ',name:'Functional Movement',goal:'ใช้มือร่วมกับการเคลื่อนไหวแขนและลำตัว',adapts:['directions','target_size','reps'],modes:{
    toy:{name:'Treasure Box',desc:'ถือลูกบอลเดินไปวางตามจุดต่าง ๆ ที่ผู้ดูแลจัดไว้',skills:['Reach','Trunk control','Carry']},
    game:{name:'Treasure Runner',desc:'กล้องตรวจตำแหน่งมือ เอื้อมไปหยิบและย้ายสมบัติบนหน้าจอ',skills:['Reach accuracy','Shoulder movement']},
    both:{name:'Treasure Delivery',desc:'ถือลูกบอลเดินไปยังเกาะที่กำหนด กล้องตรวจตำแหน่ง IMU ตรวจการเคลื่อนที่ FSR ตรวจแรง',skills:['Grip during movement','Trunk control']}}},
- {n:7,em:'🍳',th:'กิจวัตรประจำวัน',name:'Daily Living',goal:'เลียนแบบการเคลื่อนไหวที่ใช้จริงในชีวิตประจำวัน',adapts:['reps','directions','hold_time'],modes:{
+ {n:7,em:'pot',th:'กิจวัตรประจำวัน',name:'Daily Living',goal:'เลียนแบบการเคลื่อนไหวที่ใช้จริงในชีวิตประจำวัน',adapts:['reps','directions','hold_time'],modes:{
    toy:{name:'Kitchen Set',desc:'ชุดครัวของเล่น คนซุป เทน้ำ หยิบของ ตามลำดับขั้นตอน',skills:['Forearm rotation','Bilateral use']},
    game:{name:'Cooking Story',desc:'กล้องตรวจการหมุนและเคลื่อนมือ ใช้ทำอาหารตามสูตรบนหน้าจอ',skills:['Wrist motion','Sequencing']},
    both:{name:'Smart Cooking',desc:'ลูกบอลแทนวัตถุดิบ เอียงเพื่อเท หมุนเพื่อคน บีบเพื่อคั้น',skills:['Forearm rotation','Functional task']}}},
- {n:8,em:'👑',th:'ภารกิจรวม',name:'Adventure Challenge',goal:'รวมทุกทักษะไว้ในภารกิจเดียว',adapts:['target_force','hold_time','directions','reps','target_size'],modes:{
+ {n:8,em:'crown',th:'ภารกิจรวม',name:'Adventure Challenge',goal:'รวมทุกทักษะไว้ในภารกิจเดียว',adapts:['target_force','hold_time','directions','reps','target_size'],modes:{
    toy:{name:'Mission Board',desc:'กระดานภารกิจ หยิบ ใส่ ย้าย เรียง ตามการ์ดที่จั่วได้',skills:['Combined skills','Planning']},
    game:{name:'Adventure Island',desc:'ภารกิจหลายรูปแบบต่อเนื่องกัน ใช้ Hand Tracking อย่างเดียว',skills:['Combined skills','Endurance']},
    both:{name:'RehaVerse Quest',desc:'ด่านเดียวรวมทุกอย่าง เดิน ถือบอล บีบ คลาย วาง เอื้อม หมุน',skills:['All axes','Motor planning']}}},
 ];
-const MODE_META={toy:{em:'🧸',label:'Toy Only',sub:'ของเล่นอย่างเดียว ไม่ต้องมีจอ'},
-                 game:{em:'🎮',label:'Game Only',sub:'กล้อง AI อย่างเดียว ไม่ต้องมีอุปกรณ์'},
-                 both:{em:'🧸🎮',label:'Toy + Game',sub:'ลูกบอลจริงทำงานร่วมกับหน้าจอ'}};
+const MODE_META={toy:{em:'blocks',label:'Toy Only',sub:'ของเล่นอย่างเดียว ไม่ต้องมีจอ'},
+                 game:{em:'gamepad',label:'Game Only',sub:'กล้อง AI อย่างเดียว ไม่ต้องมีอุปกรณ์'},
+                 both:{em:'layers',label:'Toy + Game',sub:'ลูกบอลจริงทำงานร่วมกับหน้าจอ'}};
+
+/* ---------- ต้นไม้ทักษะ : re-skin ของ Ability Profile 6 แกน ที่มีอยู่แล้ว ---------- */
+const SKILLS=[
+ {key:'GC',icon:'hand',name:'จับแน่น',    desc:'ความสามารถในการกำและถือของ',    levels:[2,3,5,8]},
+ {key:'FA',icon:'target',name:'บีบแม่น',    desc:'ควบคุมแรงให้พอดีกับเป้าหมาย',   levels:[3,5,8]},
+ {key:'FS',icon:'waves',name:'มือนิ่ง',    desc:'คุมแรงให้คงที่ไม่แกว่ง',        levels:[2,3,5]},
+ {key:'EN',icon:'battery',name:'ความทน',     desc:'คงแรงได้นานตามที่ต้องใช้',      levels:[2,7]},
+ {key:'TM',icon:'bolt',name:'จังหวะไว',   desc:'ตอบสนองได้ทันเวลา',             levels:[4,8]},
+ {key:'CD',icon:'grid',name:'จับหลากแบบ', desc:'กระจายแรงรอบมือได้หลายรูปแบบ',  levels:[5,8]},
+];
+const skillLevel=score=>clamp(Math.ceil(clamp(score,0,100)/20),1,5);
 
 /* ==========================================================================
    Adaptive engine
@@ -102,27 +116,78 @@ function simulate(p){
 }
 
 /* ==========================================================================
+   AI Recommendation Engine
+   เลือกโหมด Toy Only / Game Only / Toy+Game ให้เหมาะกับเด็กแต่ละคน
+   แทนที่จะให้เลือกเองล้วน ๆ ระบบคำนวณคะแนนจากความสามารถมือ + พฤติกรรมต่อหน้าจอ
+   ========================================================================== */
+const REC_W1=0.6, REC_W2=0.4;   // น้ำหนัก: ความสามารถ/ความสนใจจอ vs สมาธิ
+function recommendScores(ability,screenEngagement,attentionSpan){
+  return {
+    toy   : REC_W1*(1-screenEngagement) + REC_W2*(1-attentionSpan),
+    game  : REC_W1*(1-ability)          + REC_W2*screenEngagement,
+    hybrid: REC_W1*ability              + REC_W2*attentionSpan,
+  };
+}
+const REC_KEYMAP={toy:'toy',game:'game',hybrid:'both'};
+function recommendMode(p){
+  const scores=recommendScores(p.ability,p.screenEngagement,p.attentionSpan);
+  let order=Object.entries(scores).sort((a,b)=>b[1]-a[1]);
+  if(!p.hasToy) order=order.filter(([k])=>k==='game');   // ไม่มีลูกบอล เหลือกล้องอย่างเดียว
+  const top=order[0][0];
+  const reasons=[];
+  if(top==='toy')    reasons.push(
+    `ความสนใจต่อหน้าจอยังไม่มาก (${Math.round(p.screenEngagement*100)}%)`,
+    `ช่วงสมาธิสั้น (${Math.round(p.attentionSpan*100)}%) — ของเล่นจริงในมือดึงความสนใจได้ตรงกว่า`);
+  if(top==='game')   reasons.push(
+    `ความสามารถกำมือยังต่ำ (${Math.round(p.ability*100)}/100)`,
+    `ตอบสนองต่อภาพและเสียงบนจอดี (${Math.round(p.screenEngagement*100)}%)`);
+  if(top==='hybrid') reasons.push(
+    `คุมมือได้ในระดับหนึ่งแล้ว (${Math.round(p.ability*100)}/100)`,
+    `มีสมาธิพอจะเชื่อมของจริงกับสิ่งที่เกิดบนจอ (${Math.round(p.attentionSpan*100)}%)`);
+  if(!p.hasToy) reasons.push('วันนี้ไม่มีลูกบอล ระบบจึงจำกัดตัวเลือกไว้ที่กล้องอย่างเดียว');
+  return {scores,top,mode:REC_KEYMAP[top],reasons};
+}
+/* จำลองว่า "ทุกสัปดาห์ระบบประเมินใหม่" จะแนะนำอย่างไรเมื่อความสามารถค่อย ๆ ขึ้น */
+function weeklyRecommendationTrail(p){
+  const nWeeks=Math.max(3,Math.ceil(p.nTrials/6));
+  const out=[];
+  for(let w=0;w<nWeeks;w++){
+    const mid=w*6+3;
+    const ab=clamp(p.ability+p.learn*mid,0,1);
+    out.push({week:w+1,...recommendMode({...p,ability:ab})});
+  }
+  return out;
+}
+
+/* ==========================================================================
    แฟ้มเด็ก
    ========================================================================== */
-const AVATARS=['🦊','🐨','🐸','🐙','🦄','🐧','🐢','🦁'];
+const AVATARS=['star','moon','leaf','bolt','heart','flower','rocket','diamond'];
+/* แฟ้มเก่าใน localStorage เก็บ avatar เป็นอิโมจิ จึงต้องแปลงกลับให้ใช้ต่อได้ */
+const AV_OLD={'🦊':'star','🐨':'moon','🐸':'leaf','🐙':'bolt','🦄':'heart','🐧':'flower','🐢':'rocket','🦁':'diamond'};
+const avKey=a=>AVATARS.includes(a)?a:(AV_OLD[a]||'star');
 function blankProfile(){
-  return {code:nextCode(),name:'',nick:'',avatar:'🦊',age:6,hand:'ขวา',dx:'Spastic hemiplegia',
+  return {code:nextCode(),name:'',nick:'',avatar:'star',age:6,hand:'ขวา',dx:'Spastic hemiplegia',
     macs:3,gmfcs:2,cal:{rest:.4,comf:2.0,prf:5.0},
     ability:.30,learn:.011,nTrials:24,start:{target_force:30,tolerance_band:14,hold_time:1.0},
+    screenEngagement:.5,attentionSpan:.5,
     level:1,mode:'both',hasToy:true,seeds:0};
 }
 let codeSeq=300;
 const nextCode=()=>'CP-0'+(codeSeq++);
 const SEED_PROFILES=[
- {code:'CP-0142',name:'พลอย ว.',nick:'พลอย',avatar:'🦊',age:7,hand:'ขวา',dx:'Spastic hemiplegia (ขวา)',
+ {code:'CP-0142',name:'พลอย ว.',nick:'พลอย',avatar:'star',age:7,hand:'ขวา',dx:'Spastic hemiplegia (ขวา)',
   macs:3,gmfcs:2,cal:{rest:.42,comf:2.1,prf:5.8},ability:.34,learn:.010,nTrials:32,
-  start:{target_force:30,tolerance_band:14,hold_time:0.5},level:2,mode:'both',hasToy:true,seeds:3},
- {code:'CP-0088',name:'ต้นกล้า พ.',nick:'ต้นกล้า',avatar:'🐨',age:5,hand:'ซ้าย',dx:'Spastic diplegia',
+  start:{target_force:30,tolerance_band:14,hold_time:0.5},
+  screenEngagement:.35,attentionSpan:.60,level:2,mode:'both',hasToy:true,seeds:3},
+ {code:'CP-0088',name:'ต้นกล้า พ.',nick:'ต้นกล้า',avatar:'moon',age:5,hand:'ซ้าย',dx:'Spastic diplegia',
   macs:2,gmfcs:2,cal:{rest:.31,comf:2.8,prf:7.4},ability:.52,learn:.015,nTrials:30,
-  start:{target_force:35,tolerance_band:12,hold_time:1.5},level:4,mode:'both',hasToy:true,seeds:5},
- {code:'CP-0233',name:'มีนา ส.',nick:'มีนา',avatar:'🐙',age:10,hand:'ขวา',dx:'Dyskinetic CP',
+  start:{target_force:35,tolerance_band:12,hold_time:1.5},
+  screenEngagement:.55,attentionSpan:.65,level:4,mode:'both',hasToy:true,seeds:5},
+ {code:'CP-0233',name:'มีนา ส.',nick:'มีนา',avatar:'bolt',age:10,hand:'ขวา',dx:'Dyskinetic CP',
   macs:4,gmfcs:3,cal:{rest:.68,comf:1.4,prf:3.2},ability:.16,learn:.006,nTrials:22,
-  start:{target_force:25,tolerance_band:18,hold_time:0.5},level:1,mode:'game',hasToy:false,seeds:2},
+  start:{target_force:25,tolerance_band:18,hold_time:0.5},
+  screenEngagement:.75,attentionSpan:.30,level:1,mode:'game',hasToy:false,seeds:2},
 ];
 
 /* ---------- ที่เก็บถาวร : localStorage ---------- */
@@ -154,7 +219,7 @@ try{
 /* ==========================================================================
    สถานะ
    ========================================================================== */
-const S={screen:'login',p:null,sel:1,live:0,draft:null,editingNew:false};
+const S={screen:'landing',p:null,sel:1,live:0,draft:null,editingNew:false};
 let H={trials:[],engine:newEngine({target_force:30,tolerance_band:14,hold_time:1})};
 function loadProfile(p){S.p=p;S.sel=p.level;S.live=0;G.results=[];const r=simulate(p);H={trials:r.trials,engine:r.engine};H.rng=r.rng}
 
@@ -219,11 +284,12 @@ function topbar(){
   if(S.screen==='dash'||S.screen==='editor'){
     right=`<span class="pill mono">${S.p?S.p.code:'—'}</span>
            <span class="pill">โหมดผู้ดูแล <button data-go="login">ออก</button></span>`;
-  }else if(['home','game','reward'].includes(S.screen)&&S.p){
+  }else if(['home','game','reward','skills'].includes(S.screen)&&S.p){
     const m=MODE_META[S.p.mode];
-    right=`<span class="pill">${S.p.avatar} ${S.p.nick}</span>
-           <span class="pill">${m.em} ${m.label} <button data-go="mode">เปลี่ยน</button></span>
-           <span class="pill">🌱 ${S.p.seeds}</span>`;
+    right=`<span class="pill">${ico(avKey(S.p.avatar))} ${S.p.nick}</span>
+           ${S.screen!=='skills'?`<span class="pill">${ico('sparkle')} ทักษะ <button data-go="skills">ดู</button></span>`:`<span class="pill">${ico('compass')} เกาะ <button data-go="home">ดู</button></span>`}
+           <span class="pill">${ico(m.em)} ${m.label} <button data-go="mode">เปลี่ยน</button></span>
+           <span class="pill">${ico('leaf')} ${S.p.seeds}</span>`;
   }
   $('topbar').innerHTML=`<div class="mark"><b>RehaVerse</b><span>adaptive rehab platform</span></div>${right}`;
   $('foot').innerHTML=pro
@@ -236,122 +302,245 @@ function topbar(){
    ========================================================================== */
 const SC={};
 
+SC.landing=()=>`
+<div class="screen landing">
+  <div class="landcopy">
+    <span class="eyebrow">RehaBall · ลูกบอลเซนเซอร์</span>
+    <h1>เปลี่ยนการฝึกมือ<br>ให้เป็นการผจญภัย</h1>
+    <p>ลูกบอลที่วัดแรงบีบได้จริง ทำงานร่วมกับเกมบนหน้าจอ
+       ระบบดูจากการเล่นครั้งก่อนแล้วปรับความยากให้เองทุกวัน</p>
+    <div class="landcta"><button class="big" data-go="login">${ico('play')} เริ่มใช้งาน</button></div>
+    <div class="landstats">
+      <div><b>8</b><span>ด่านผจญภัย</span></div>
+      <div><b>6</b><span>ทักษะที่วัดได้</span></div>
+      <div><b>3</b><span>โหมดการเล่น</span></div>
+    </div>
+  </div>
+  <div class="landart"><div class="artwrap">
+    <svg class="artbg" viewBox="0 0 420 420" aria-hidden="true">
+      <circle cx="210" cy="210" r="152" fill="#fff" opacity=".5"/>
+      <g class="ring"><circle cx="210" cy="210" r="184" fill="none" stroke="#fff"
+        stroke-width="4" stroke-dasharray="12 17" stroke-linecap="round" opacity=".8"/></g>
+      <path fill="#FFB43C" d="M62 78 66 88 77 89 69 96 71 107 62 101 53 107 55 96 47 89 58 88z"/>
+      <path fill="#D6206E" d="M366 296 370 306 381 307 373 314 375 325 366 319 357 325 359 314 351 307 362 306z"/>
+      <circle cx="360" cy="104" r="10" fill="#0FA3A3"/>
+      <circle cx="58" cy="330" r="8" fill="#6C5CE7"/>
+      <circle cx="388" cy="196" r="6" fill="#5DBE3E"/>
+    </svg>
+    <img src="rehaball.png" alt="ลูกบอล RehaBall" width="620" height="613">
+  </div></div>
+</div>`;
+
 SC.login=()=>`
 <div class="center screen"><div style="width:100%;max-width:800px">
   <div class="kh" style="text-align:center">
     <span class="eyebrow">เข้าสู่ระบบ</span><h1>วันนี้ใครจะใช้งาน</h1>
-    <p style="margin:var(--s2) auto 0">เลือกให้ตรงกับคนที่กำลังถือเครื่องอยู่ ระบบจะแสดงคนละหน้าจอ แต่ใช้ข้อมูลชุดเดียวกัน</p>
+    <p style="margin:var(--s2) auto 0">เลือกให้ตรงกับคนที่ถือเครื่องอยู่ ทั้งสองฝั่งใช้ข้อมูลชุดเดียวกัน</p>
   </div>
   <div class="rolegrid">
-    <button class="rolecard" data-go="pick"><span class="em">🧒</span><h3>ฉันคือเด็ก</h3>
-      <p>เลือกรูปของตัวเองแล้วเข้าไปเล่นได้เลย ระบบจำด่านและความยากไว้ให้แล้ว</p></button>
-    <button class="rolecard" data-go="code"><span class="em">🩺</span><h3>ผู้ปกครอง / นักกายภาพ</h3>
-      <p>ใส่รหัสแฟ้มของเด็กเพื่อดูพัฒนาการ ตัวชี้วัด และวิธีคำนวณทั้งหมด</p></button>
-    <button class="rolecard" data-newprofile="1"><span class="em">📁</span><h3>สร้างแฟ้มใหม่</h3>
-      <p>ลงทะเบียนเด็กคนใหม่ ตั้งค่าคาลิเบรตและระดับเริ่มต้น ระบบออกรหัสแฟ้มให้อัตโนมัติ</p></button>
+    <button class="rolecard" data-go="pick"><span class="em">${ico('user')}</span><h3>ฉันคือเด็ก</h3>
+      <p>เลือกรูปของตัวเอง แล้วเข้าไปเล่นได้เลย</p></button>
+    <button class="rolecard" data-go="code"><span class="em">${ico('stethoscope')}</span><h3>ผู้ปกครอง / นักกายภาพ</h3>
+      <p>ดูพัฒนาการ ตัวชี้วัด และวิธีคำนวณทั้งหมด</p></button>
+    <button class="rolecard" data-newprofile="1"><span class="em">${ico('folder')}</span><h3>สร้างแฟ้มใหม่</h3>
+      <p>ลงทะเบียนเด็กใหม่ ระบบออกรหัสแฟ้มให้เอง</p></button>
   </div>
 </div></div>`;
 
 SC.pick=()=>`
 <div class="center screen"><div style="width:100%;max-width:760px">
-  <button class="back" data-go="login">← กลับ</button>
+  <button class="back" data-go="login">${ico('arrow-left')} กลับ</button>
   <div class="kh" style="text-align:center"><h1>หนูคือใครเอ่ย</h1>
     <p style="margin:var(--s2) auto 0">แตะรูปของตัวเองได้เลย</p></div>
   <div class="avatars">
-    ${PROFILES.map(p=>`<button class="av" data-kid="${p.code}"><span class="face">${p.avatar}</span>
+    ${PROFILES.map(p=>`<button class="av" data-kid="${p.code}"><span class="face" data-av="${avKey(p.avatar)}">${ico(avKey(p.avatar))}</span>
       <b>${p.nick}</b><span>${p.code}</span></button>`).join('')}
-    <button class="av add" data-newprofile="1"><span class="face">➕</span><b>สร้างใหม่</b><span>REGISTER</span></button>
+    <button class="av add" data-newprofile="1"><span class="face add">${ico('plus')}</span><b>สร้างใหม่</b><span>REGISTER</span></button>
   </div>
 </div></div>`;
 
 SC.code=()=>`
 <div class="center screen"><div style="width:100%;max-width:430px">
-  <button class="back" data-go="login">← กลับ</button>
+  <button class="back" data-go="login">${ico('arrow-left')} กลับ</button>
   <div class="paper">
-    <span class="eyebrow" style="color:#8A6A3A">เข้าสู่ระบบผู้ดูแล</span>
+    <span class="eyebrow" >เข้าสู่ระบบผู้ดูแล</span>
     <h2 style="font-family:var(--fd);font-weight:500;font-size:21px;margin:4px 0 var(--s3)">ใส่รหัสแฟ้มของเด็ก</h2>
     <label class="field codebox"><span>รหัสแฟ้ม (Kid ID)</span><input id="codein" placeholder="CP-0000" autocomplete="off"></label>
     <p class="err" id="codeerr">ไม่พบรหัสนี้ ลองตรวจตัวอักษรอีกครั้ง</p>
     <button class="big" id="codego">เปิดแฟ้มข้อมูล</button>
     <div class="hintcodes">${PROFILES.map(p=>`<button data-fill="${p.code}">${p.code} · ${p.nick}</button>`).join('')}</div>
-    <p style="margin:var(--s3) 0 0;font-size:11.5px;color:#6C7B81;line-height:1.65">
-      ในระบบจริงต้องยืนยันตัวตนสองชั้นและบันทึกว่าใครเปิดดูเมื่อไร เพราะเป็นข้อมูลสุขภาพของเด็ก</p>
+    <p style="margin:var(--s3) 0 0;font-size:11.5px;color:var(--ink-2);line-height:1.65">
+      ระบบจริงต้องยืนยันตัวตนสองชั้น เพราะเป็นข้อมูลสุขภาพของเด็ก</p>
   </div>
 </div></div>`;
 
 SC.toy=()=>`
-<div class="screen"><button class="back" data-go="pick">← กลับ</button>
+<div class="screen"><button class="back" data-go="pick">${ico('arrow-left')} กลับ</button>
   <div class="kh"><span class="eyebrow">ขั้นที่ 1 จาก 2</span><h1>วันนี้มีลูกบอล RehaBall อยู่ด้วยไหม</h1>
-    <p>ถ้าไม่มีก็เล่นได้เหมือนกัน ระบบจะเปลี่ยนไปใช้กล้องตรวจจับมือแทน แล้วยังเก็บข้อมูลให้นักกายภาพได้ตามปกติ</p></div>
+    <p>ถ้าไม่มีก็เล่นได้ ระบบจะใช้กล้องตรวจจับมือแทน</p></div>
   <div class="rolegrid" style="max-width:600px">
-    <button class="rolecard" data-toy="1"><span class="em">🧸</span><h3>มีลูกบอล</h3>
-      <p>เล่นได้ทั้งแบบใช้ของเล่นอย่างเดียว และแบบเชื่อมกับหน้าจอ</p></button>
-    <button class="rolecard" data-toy="0"><span class="em">📷</span><h3>วันนี้ใช้กล้องแทน</h3>
+    <button class="rolecard" data-toy="1"><span class="em">${ico('blocks')}</span><h3>มีลูกบอล</h3>
+      <p>เล่นได้ทั้งแบบมีจอและไม่มีจอ</p></button>
+    <button class="rolecard" data-toy="0"><span class="em">${ico('camera')}</span><h3>วันนี้ใช้กล้องแทน</h3>
       <p>ใช้กล้องตรวจจับมืออย่างเดียว ไม่ต้องถืออุปกรณ์</p></button>
   </div></div>`;
 
 SC.mode=()=>{
   const opts=S.p.hasToy?['toy','both']:['game'];
-  return `<div class="screen"><button class="back" data-go="toy">← กลับ</button>
+  const rec=recommendMode(S.p);
+  return `<div class="screen"><button class="back" data-go="toy">${ico('arrow-left')} กลับ</button>
   <div class="kh"><span class="eyebrow">ขั้นที่ 2 จาก 2</span>
     <h1>${S.p.hasToy?'วันนี้อยากเล่นแบบไหน':'วันนี้เล่นด้วยกล้อง'}</h1>
-    <p>${S.p.hasToy?'เลือกได้ทุกวัน ไม่ต้องเหมือนเดิม ระบบจับคู่เกมในด่านเดียวกันให้อัตโนมัติ':'ไม่มีลูกบอลก็ฝึกได้ทุกด่าน กล้องจะจับตำแหน่งและรูปทรงของมือแทนเซนเซอร์แรง'}</p></div>
+    <p>${S.p.hasToy?'เลือกได้ทุกวัน ไม่ต้องเหมือนเดิม':'ไม่มีลูกบอลก็ฝึกได้ทุกด่าน'}</p></div>
+  ${opts.length>1?`<div class="airow">${ico('cpu','lg')}<span>ระบบดูจากการเล่นล่าสุดแล้วคิดว่า <b>${MODE_META[rec.mode].label}</b> เหมาะกับ${S.p.nick}วันนี้ที่สุด — จะเลือกโหมดอื่นก็ได้เสมอ</span></div>`:''}
   <div class="rolegrid" style="max-width:600px">
-    ${opts.map(k=>{const m=MODE_META[k];return `<button class="rolecard" data-mode="${k}">
-      <span class="em">${m.em}</span><h3>${m.label}</h3><p>${m.sub}</p>
-      <p style="font-family:var(--fm);font-size:10px;color:#8A5314;margin-top:4px">
+    ${opts.map(k=>{const m=MODE_META[k],isRec=k===rec.mode&&opts.length>1;return `<button class="rolecard ${isRec?'reco':''}" data-mode="${k}">
+      ${isRec?`<span class="ribbon">${ico('cpu')} แนะนำวันนี้</span>`:''}
+      <span class="em">${ico(m.em)}</span><h3>${m.label}</h3><p>${m.sub}</p>
+      <p style="font-family:var(--fm);font-size:10px;color:var(--ink-3);margin-top:4px">
         ${k==='toy'?'เก็บ: แรงบีบ · เวลา':k==='game'?'เก็บ: ตำแหน่งมือ · เวลา':'เก็บ: แรงบีบ · Heat Map · IMU'}</p></button>`}).join('')}
   </div></div>`;
 };
 
 function kidAdaptChips(){
   const a=H.engine.log.filter(l=>['up','down','down2'].includes(l.action)).slice(-2);
-  if(!a.length)return '<span class="kidchip">✨ เริ่มที่ระดับเดิมของเมื่อวาน</span>';
+  if(!a.length)return `<span class="kidchip">${ico('sparkle')} เริ่มที่ระดับเดิมของเมื่อวาน</span>`;
   return a.map(l=>{const d=DIMS[l.dim];
-    return `<span class="kidchip ${l.action==='up'?'up':''}">${d.ico} ${l.action==='up'?d.kidUp:d.kidDn}</span>`}).join('');
+    return `<span class="kidchip ${l.action==='up'?'up':''}">${ico(d.ico)} ${l.action==='up'?d.kidUp:d.kidDn}</span>`}).join('');
 }
+
+/* ==========================================================================
+   แผนที่การเดินทาง : จุดหยุดของแต่ละด่านบนถนนโค้ง
+   พิกัดอยู่ในระบบ viewBox 1000x380 แล้วแปลงเป็น % ตอนวาง ทำให้ย่อขยายตามจอได้
+   ========================================================================== */
+const RVW=1000, RVH=380;
+const ROAD=[{x:62,y:292},{x:196,y:196},{x:330,y:296},{x:464,y:186},
+            {x:598,y:288},{x:732,y:178},{x:862,y:272},{x:936,y:146}];
+/* Catmull-Rom -> cubic bezier : ถนนลากผ่านทุกจุดหยุดพอดี */
+const smoothPath=pts=>pts.reduce((d,pt,i,a)=>{
+  if(!i)return `M ${pt.x} ${pt.y}`;
+  const p0=a[i-2]||a[i-1],p1=a[i-1],p2=pt,p3=a[i+1]||pt;
+  return d+` C ${r1(p1.x+(p2.x-p0.x)/6)} ${r1(p1.y+(p2.y-p0.y)/6)}, `
+          +`${r1(p2.x-(p3.x-p1.x)/6)} ${r1(p2.y-(p3.y-p1.y)/6)}, ${p2.x} ${p2.y}`;
+},'');
 
 SC.home=()=>{
   const p=S.p,lv=LEVELS.find(l=>l.n===S.sel),g=lv.modes[p.mode],
         others=Object.keys(lv.modes).filter(k=>k!==p.mode),d=H.engine.diff;
-  const rail=LEVELS.map(l=>{
-    const st=l.n<p.level?'done':l.n===p.level?'cur':(l.n<=p.level+1?'':'locked');
-    return `<button class="station ${st} ${l.n===S.sel?'sel':''}" data-level="${l.n}" ${l.n>p.level+1?'disabled':''}>
-      <div class="node">${l.n<p.level?'✓':l.em}</div><small>LEVEL ${l.n}</small><b>${l.th}</b></button>`}).join('');
+  const dpath=smoothPath(ROAD);
+  const stops=LEVELS.map((l,i)=>{
+    const st=l.n<p.level?'done':l.n===p.level?'cur':l.n===p.level+1?'next':'locked';
+    const pt=ROAD[i];
+    return `<button class="stop ${st} ${l.n===S.sel?'sel':''}" data-level="${l.n}"
+      style="left:${r1(pt.x/RVW*100)}%;top:${r1(pt.y/RVH*100)}%;--i:${i}"
+      ${l.n>p.level+1?'disabled':''} aria-label="ด่าน ${l.n} ${l.th}">
+      <span class="pin">${st==='done'?ico('check'):st==='locked'?ico('lock'):ico(l.em)}</span>
+      <span class="tag"><i>ด่าน ${l.n}</i><b>${l.th}</b></span>
+      ${st==='next'?'<span class="here">ไปต่อที่นี่</span>':''}</button>`}).join('');
   return `<div class="screen">
-  <div class="kh"><span class="eyebrow">เกาะผจญภัยของ${p.nick}</span>
-    <h1>ด่านที่ ${p.level} · ${LEVELS[p.level-1].th}</h1>
-    <p>ระบบเลือกด่านนี้ให้จากการเล่นครั้งล่าสุด แตะที่ด่านอื่นเพื่อดูรายละเอียดได้</p></div>
-  <div class="rail"><div class="railinner">${rail}</div></div>
-  <div class="detail">
-    <div class="paper gamecard">
-      <span class="eyebrow" style="color:#8A6A3A">LEVEL ${lv.n} · ${lv.name} · ${MODE_META[p.mode].em} ${MODE_META[p.mode].label}</span>
-      <h2>${g.name}</h2><p class="desc">${g.desc}</p>
+  <div class="homehead">
+    <div class="kh"><span class="eyebrow">แผนที่ผจญภัยของ${p.nick}</span>
+      <h1>ด่านที่ ${p.level} · ${LEVELS[p.level-1].th}</h1>
+      <p>แตะที่ด่านบนถนนเพื่อดูว่าจะได้เล่นอะไร</p></div>
+    <button class="treebtn" data-go="skills">${ico('network')} ต้นไม้ทักษะ</button>
+  </div>
+
+  <div class="roadwrap"><div class="road" id="road">
+    <svg class="roadsvg" viewBox="0 0 ${RVW} ${RVH}" preserveAspectRatio="none" aria-hidden="true">
+      <path class="roadedge" d="${dpath}"/>
+      <path class="roadline" id="roadline" d="${dpath}"/>
+      <path class="roaddash" d="${dpath}"/>
+    </svg>
+    ${stops}
+    <div class="traveller" id="trav" data-av="${avKey(p.avatar)}">
+      <span class="pop"></span>${ico(avKey(p.avatar))}</div>
+  </div></div>
+
+  <div class="paper quest">
+    <div class="questmain">
+      <span class="eyebrow">ด่าน ${lv.n} · ${lv.name} · ${MODE_META[p.mode].label}</span>
+      <h2>${g.name}</h2>
+      <p class="desc">${g.desc}</p>
+      <div class="goal">${ico('target')}<div><b>เป้าหมายของด่านนี้</b><span>${lv.goal}</span></div></div>
       <div class="chips">${g.skills.map(s=>`<span class="chip">${s}</span>`).join('')}</div>
-      <div class="adaptbox"><b>ระบบปรับให้แล้วสำหรับวันนี้</b>
-        <div class="kidchips">${kidAdaptChips()}</div>
-        <small>ไม่มีปุ่มง่าย / ปานกลาง / ยาก ให้เลือก — ระบบดูจากอัตราสำเร็จของครั้งก่อน แล้วเลื่อนความยากเองทีละมิติ
-        ${g.playable?`<br><span style="font-family:var(--fm);font-size:10.5px">ค่าจริงวันนี้: TARGET ${d.target_force}% ±${d.tolerance_band} · HOLD ${r1(d.hold_time)}s — เด็กไม่เห็นตัวเลขชุดนี้</span>`:''}</small></div>
       ${p.mode==='toy'?`
-      <div style="background:rgba(23,38,46,.05);border-radius:var(--rm);padding:var(--s3);margin-bottom:var(--s3)">
-        <b style="display:block;font-size:13.5px;margin-bottom:6px">โหมดนี้ไม่ใช้หน้าจอเล่น</b>
-        <p style="margin:0;font-size:12.5px;color:#5C6C73;line-height:1.7">เด็กเล่นที่ตัวของเล่นโดยตรง หน้าจอทำหน้าที่รับข้อมูลจากเซนเซอร์และสรุปผลเท่านั้น</p>
-        <div style="display:flex;align-items:center;gap:9px;margin-top:var(--s3);font-family:var(--fm);font-size:11.5px;color:var(--sea)">
-          <span style="width:7px;height:7px;border-radius:50%;background:#4C9A5B;display:inline-block"></span>เชื่อมต่อกับของเล่นแล้ว</div></div>
+      <div class="toynote">${ico('bluetooth')}<div><b>โหมดนี้ไม่ใช้หน้าจอเล่น</b>
+        <span>เด็กเล่นที่ตัวของเล่นโดยตรง หน้าจอรับข้อมูลและสรุปผลเท่านั้น · เชื่อมต่อแล้ว</span></div></div>
       <button class="big" data-go="reward">ดูสรุปหลังเล่นเสร็จ</button>`
-      : g.playable?`<button class="big" data-go="game">▶  เริ่มเล่น</button>`
-      :`<button class="big" style="background:rgba(23,38,46,.1);color:#5C6C73;box-shadow:none" disabled>ยังไม่เปิดในต้นแบบนี้</button>`}
+      : g.playable?`<button class="big play" data-go="game">${ico('play')} เริ่มเล่น</button>`
+      :`<button class="big" disabled>ยังไม่เปิดในต้นแบบนี้</button>`}
     </div>
-    <div class="side">
-      <div class="sidecard"><h4>เป้าหมายของด่านนี้</h4>
-        <p style="margin:0;font-size:13.5px;color:rgba(247,229,198,.72);line-height:1.7">${lv.goal}</p>
-        <h4 style="margin-top:var(--s3)">สิ่งที่ระบบปรับได้ในด่านนี้</h4>
-        <ul class="skilllist">${lv.adapts.map(a=>`<li>${DIMS[a].ico} ${DIMS[a].label}</li>`).join('')}</ul></div>
-      <div class="sidecard"><h4>โหมดอื่นของด่านเดียวกัน</h4>
-        ${others.map(k=>`<div class="mini"><span class="em">${MODE_META[k].em}</span>
-          <div><b>${lv.modes[k].name}</b><span>${MODE_META[k].label} — ${lv.modes[k].skills.slice(0,2).join(' · ')}</span></div></div>`).join('')}</div>
+    <div class="questside">
+      <div class="adaptbox"><b>ระบบปรับให้แล้ววันนี้</b>
+        <div class="kidchips">${kidAdaptChips()}</div>
+        <small>ระบบดูจากอัตราสำเร็จครั้งก่อน แล้วเลื่อนความยากเองทีละมิติ
+        ${g.playable?`<br><span class="mono">TARGET ${d.target_force}% ±${d.tolerance_band} · HOLD ${r1(d.hold_time)}s — เด็กไม่เห็นตัวเลขชุดนี้</span>`:''}</small></div>
+      <div class="adaptlist"><b>สิ่งที่ระบบปรับได้</b>
+        <ul class="skilllist">${lv.adapts.map(a=>`<li>${ico(DIMS[a].ico)} ${DIMS[a].label}</li>`).join('')}</ul></div>
+      <div class="others"><b>โหมดอื่นของด่านนี้</b>
+        ${others.map(k=>`<div class="mini"><span class="em">${ico(MODE_META[k].em)}</span>
+          <div><b>${lv.modes[k].name}</b><span>${MODE_META[k].label}</span></div></div>`).join('')}</div>
     </div>
   </div></div>`;
+};
+
+/* เดินทางไปตามถนน : sample จาก path จริง แล้ววางเป็น % ทำให้ตรงเสมอทุกขนาดจอ */
+function mountRoad(){
+  const road=$('road'),path=$('roadline'),trav=$('trav');
+  if(!road||!path||!trav)return;
+  const total=path.getTotalLength();
+  const put=l=>{const q=path.getPointAtLength(l);
+    trav.style.left=q.x/RVW*100+'%';trav.style.top=q.y/RVH*100+'%'};
+  const lenOf=pt=>{let best=0,bd=Infinity;
+    for(let i=0;i<=320;i++){const l=total*i/320,q=path.getPointAtLength(l),
+      dd=(q.x-pt.x)**2+(q.y-pt.y)**2;if(dd<bd){bd=dd;best=l}}return best};
+  const cur=clamp(S.p.level-1,0,ROAD.length-1),from=Math.max(0,cur-1);
+  const L0=lenOf(ROAD[from]),L1=lenOf(ROAD[cur]);
+  const done=()=>{road.classList.add('arrived')};
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches||L1===L0){put(L1);done();return}
+  const T=1600,t0=performance.now();
+  (function step(now){
+    const k=Math.min(1,(now-t0)/T),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+    put(L0+(L1-L0)*e);
+    k<1?requestAnimationFrame(step):done();
+  })(t0);
+}
+
+SC.skills=()=>{
+  const p=S.p,sp=skillPairs();
+  const cx=50,cy=50,R=36;
+  const nodes=SKILLS.map((sk,i)=>{
+    const a=-Math.PI/2+i*(Math.PI*2/SKILLS.length);
+    const now=sp[sk.key].last,first=sp[sk.key].first;
+    return {...sk,x:cx+R*Math.cos(a),y:cy+R*Math.sin(a),lvl:skillLevel(now),now,grew:now-first};
+  });
+  const lines=nodes.map(n=>`<line x1="${cx}" y1="${cy}" x2="${n.x}" y2="${n.y}" stroke="rgba(6,54,74,.22)" stroke-width="1" stroke-dasharray="2.5 2.5"/>`).join('');
+  const dots=nodes.map(n=>`<circle cx="${n.x}" cy="${n.y}" r="1.4" fill="rgba(6,54,74,.3)"/>`).join('');
+  const top=[...nodes].sort((a,b)=>b.grew-a.grew)[0];
+  return `<div class="screen">
+  <button class="back" data-go="home">${ico('arrow-left')} กลับไปที่เกาะ</button>
+  <div class="kh"><span class="eyebrow">ต้นไม้ทักษะของ${p.nick}</span>
+    <h1>มือของ${p.nick}เก่งขึ้นเรื่อย ๆ</h1>
+    <p>ทุกครั้งที่เล่น ทักษะแต่ละด้านจะได้ดาวเพิ่ม</p></div>
+  <div class="skilltree">
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none">${lines}${dots}</svg>
+    <div class="stCenter" data-av="${avKey(p.avatar)}">${ico(avKey(p.avatar))}</div>
+    ${nodes.map(n=>`
+      <div class="stNode" style="left:${n.x}%;top:${n.y}%">
+        <div class="stIcon">${ico(n.icon)}</div>
+        <b>${n.name}</b>
+        <div class="stars">${Array.from({length:5},(_,i)=>`<span class="${i<n.lvl?'on':''}">${ico(i<n.lvl?'star-fill':'star')}</span>`).join('')}</div>
+        <span class="stTrain">ฝึกได้จากด่าน ${n.levels.join(', ')}</span>
+      </div>`).join('')}
+  </div>
+  <div class="paper" style="margin-top:var(--s3)">
+    <span class="eyebrow" >โตเร็วที่สุดตอนนี้</span>
+    <h3 style="font-family:var(--fd);font-weight:500;font-size:17px;margin:2px 0 6px">${ico(top.icon)} ${top.name}</h3>
+    <p style="margin:0;font-size:13.5px;color:var(--ink-2);line-height:1.7">
+      ${top.grew>3?`ทักษะนี้พัฒนาชัดเจนที่สุดในช่วงหลัง ลองเล่นด่าน ${top.levels.join(', ')} ต่อเพื่อขึ้นดาวดวงถัดไป`
+        :'ทุกทักษะกำลังพัฒนาไปพร้อม ๆ กัน ลองเล่นให้ครบทุกด่านเพื่อดูว่าดาวไหนจะพุ่งก่อน'}</p>
+  </div>
+  </div>`;
 };
 
 /* ==========================================================================
@@ -387,7 +576,7 @@ SC.game=()=>`
           <rect id="band" x="-26" y="180" width="52" height="60" fill="rgba(242,145,61,.34)"/>
           <path id="bandTop" d="M -26,180 H 26" stroke="#F2913D" stroke-width="3.5" stroke-linecap="round"/>
           <path id="bandBot" d="M -26,240 H 26" stroke="#F2913D" stroke-width="3.5" stroke-linecap="round"/>
-          <text id="bandStar" x="42" y="216" font-size="20" text-anchor="middle" opacity=".9">⭐</text>
+          <use id="bandStar" href="#i-star" x="32" y="206" width="20" height="20" opacity=".9" color="#FFD98A"/>
         </g>
         <rect id="fill" x="-26" y="330" width="52" height="20" rx="12" fill="url(#tubeGrad)"/>
         <g id="fishG" transform="translate(0,340)">
@@ -422,13 +611,13 @@ SC.game=()=>`
 
       <!-- มือชี้นำตอนเริ่ม -->
       <g id="tut" transform="translate(556,300)" opacity="0">
-        <text x="-58" y="6" font-size="30">👆</text>
+        <use href="#i-hand" x="-58" y="-24" width="30" height="30" color="#F7E5C6"/>
       </g>
     </svg>
     <canvas id="fx"></canvas>
   </div>
   <div class="gbar">
-    <div class="helpline">🖱️ กดค้างแล้วลากขึ้น–ลง &nbsp;·&nbsp; ⌨️ ปุ่มลูกศรขึ้น–ลง</div>
+    <div class="helpline">กดค้างแล้วลากขึ้น–ลง &nbsp;·&nbsp; ปุ่มลูกศรขึ้น–ลง</div>
     <button class="quit" data-go="reward">จบภารกิจ</button>
   </div>
 </div>`;
@@ -447,11 +636,11 @@ function mountGame(){
     bandR.setAttribute('y',yTop);bandR.setAttribute('height',Math.max(6,yBot-yTop));
     bandGlow.setAttribute('y',yTop-8);bandGlow.setAttribute('height',Math.max(6,yBot-yTop)+16);
     bandT.setAttribute('d',`M -26,${yTop} H 26`);bandB.setAttribute('d',`M -26,${yBot} H 26`);
-    bandStar.setAttribute('y',(yTop+yBot)/2+7);
+    bandStar.setAttribute('y',(yTop+yBot)/2-10);
   }
   function drawSaved(){
     saved.innerHTML=Array.from({length:5},(_,i)=>
-      i<G.rescued?`<text x="${i*34}" y="0" font-size="26">🐣</text>`
+      i<G.rescued?`<use href="#i-heart" x="${i*34-13}" y="-13" width="26" height="26" color="#FFD98A"/>`
                  :`<circle cx="${i*34+11}" cy="-8" r="11" fill="rgba(247,229,198,.12)" stroke="rgba(247,229,198,.3)" stroke-width="2"/>`).join('');
   }
   drawBand();drawSaved();
@@ -576,15 +765,15 @@ function mountGame(){
 SC.reward=()=>{
   const ok=G.results.filter(Boolean).length,n=G.results.length;
   return `<div class="center screen"><div style="width:100%;max-width:560px;text-align:center">
-  <div style="font-size:66px">🌱</div>
+  <div class="rewardmark">${ico('sprout')}</div>
   <div class="kh" style="text-align:center"><h1>ภารกิจวันนี้สำเร็จแล้ว</h1>
     <p style="margin:var(--s2) auto 0">${n?`${S.p.nick}ช่วยสัตว์ได้ ${ok} ตัวจาก ${n} ครั้ง`:'เก่งมาก แล้วพรุ่งนี้มาเล่นกันใหม่'} ได้เมล็ดพันธุ์ไปปลูกในสวนแล้ว</p></div>
   <div class="paper" style="margin:var(--s4) 0">
-    <div style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap">
+    <div class="seedgrid">
       ${Array.from({length:9},(_,i)=>i<S.p.seeds
-        ?`<div style="width:48px;height:48px;border-radius:15px;background:#fff;display:grid;place-items:center;font-size:21px;border:2px solid rgba(23,38,46,.08)">${['🌻','🌵','🌷','🍄','🌴','🪴','🌺','🍀','🌸'][i]}</div>`
-        :`<div style="width:48px;height:48px;border-radius:15px;background:rgba(23,38,46,.05);display:grid;place-items:center;border:2px dashed rgba(23,38,46,.15);opacity:.5">+</div>`).join('')}</div>
-    <p style="margin:var(--s3) 0 0;font-size:13px;color:#5C6C73">เล่นจบได้เมล็ดพันธุ์เสมอ ไม่ว่าคะแนนจะเป็นเท่าไร</p></div>
+        ?`<div class="seed">${ico(['flower','sprout','flower','leaf','tree','sprout','flower','leaf','flower'][i])}</div>`
+        :`<div class="seed empty">${ico('plus')}</div>`).join('')}</div>
+    <p style="margin:var(--s3) 0 0;font-size:13px;color:var(--ink-2)">เล่นจบได้เมล็ดพันธุ์เสมอ ไม่ว่าคะแนนจะเป็นเท่าไร</p></div>
   <button class="big" data-go="home">กลับไปที่เกาะ</button>
   <button class="big ghost" style="margin-top:var(--s2)" data-go="dash">ดูหน้านักกายภาพ (สำหรับสาธิต)</button>
 </div></div>`;
@@ -598,8 +787,9 @@ function edPreview(p){
   const rl=tr.map((_,i)=>mean(tr.slice(Math.max(0,i-4),i+1).map(t=>t.ok?1:0)));
   const W=280,Hh=64;
   const pts=rl.map((v,i)=>`${i*(W/Math.max(1,rl.length-1))},${Hh-v*Hh}`).join(' ');
+  const rec=recommendMode(p);
   return `<div class="preview">
-    <h4>${p.avatar} ตัวอย่างเคสนี้</h4>
+    <h4>${ico(avKey(p.avatar))} ตัวอย่างเคสนี้</h4>
     <p class="cap">ระบบจำลองการเล่น ${p.nTrials} ครั้งจากค่าที่ตั้งไว้ แล้วรันผ่าน adaptive engine ตัวจริง กราฟนี้คืออัตราสำเร็จที่ได้</p>
     <svg viewBox="0 0 ${W} ${Hh}" width="100%" style="background:#fff;border-radius:8px">
       <rect x="0" y="${Hh*.2}" width="${W}" height="${Hh*.1}" fill="rgba(23,107,119,.15)"/>
@@ -610,6 +800,7 @@ function edPreview(p){
       <div class="kv"><span>อัตราสำเร็จรวม</span><b>${Math.round(ok/tr.length*100)}%</b></div>
       <div class="kv"><span>ความยากปลายทาง</span><b>${r1(r.engine.diff.hold_time)}s · ±${r.engine.diff.tolerance_band} · ${r.engine.diff.target_force}%</b></div>
       <div class="kv"><span>engine ปรับทั้งหมด</span><b>${r.engine.log.filter(l=>l.action!=='hold').length} ครั้ง</b></div>
+      <div class="kv"><span>${ico('cpu')} AI แนะนำโหมด</span><b>${MODE_META[rec.mode].label}</b></div>
     </div></div>`;
 }
 SC.editor=()=>{
@@ -637,7 +828,7 @@ SC.editor=()=>{
             <label class="field"><span>ชื่อเล่น (ที่เด็กเห็น)</span><input data-f="nick" value="${p.nick}" placeholder="เช่น พลอย"></label>
           </div>
           <div class="field"><span>รูปประจำตัว</span><div class="emojipick">
-            ${AVATARS.map(a=>`<button data-av="${a}" class="${a===p.avatar?'on':''}">${a}</button>`).join('')}</div></div>
+            ${AVATARS.map(a=>`<button data-av="${a}" data-avk="${a}" class="${a===avKey(p.avatar)?'on':''}">${ico(a)}</button>`).join('')}</div></div>
           <div class="frow3">
             <label class="field"><span>อายุ (ปี)</span><input type="number" data-f="age" value="${p.age}" min="1" max="18"></label>
             <label class="field"><span>มือที่ฝึก</span><select data-f="hand">
@@ -667,11 +858,17 @@ SC.editor=()=>{
 
       <div class="procard">
         <h3>สร้างเคสสำหรับสาธิต</h3>
-        <p class="note">ค่าสามตัวนี้ป้อนให้ simulated learner ไม่ได้อยู่ในระบบจริง ใช้สร้างประวัติการเล่นที่สมจริงเพื่อทดสอบว่า adaptive engine ตอบสนองอย่างไรกับเด็กที่ความสามารถต่างกัน</p>
+        <p class="note">ค่าเหล่านี้ป้อนให้ simulated learner ไม่ได้อยู่ในระบบจริง ใช้สร้างประวัติการเล่นที่สมจริงเพื่อทดสอบว่า adaptive engine ตอบสนองอย่างไรกับเด็กที่ความสามารถต่างกัน</p>
         <div style="margin-top:var(--s3)">
           ${sl('ความสามารถเริ่มต้น','ability',.05,.85,.01,v=>Math.round(v*100)+'/100')}
           ${sl('อัตราการเรียนรู้ต่อครั้ง','learn',.002,.03,.001,v=>(v*100).toFixed(1)+'%')}
           ${sl('จำนวนครั้งที่จำลอง','nTrials',10,60,1,v=>v+' trials')}
+        </div>
+        <h3 style="margin-top:var(--s4)">ป้อนให้ AI Recommendation Engine</h3>
+        <p class="note">สองค่านี้ใช้เลือกว่าควรแนะนำ Toy Only / Game Only / Toy+Game — ในระบบจริงควรมาจาก assessment สั้น ๆ ตอนลงทะเบียน แต่ที่นี่ปรับตามใจได้เพื่อทดสอบว่าคำแนะนำเปลี่ยนไปอย่างไร</p>
+        <div style="margin-top:var(--s3)">
+          ${sl('ความสนใจต่อหน้าจอ','screenEngagement',0,1,.05,v=>Math.round(v*100)+'%')}
+          ${sl('ช่วงสมาธิ','attentionSpan',0,1,.05,v=>Math.round(v*100)+'%')}
         </div>
         <h3 style="margin-top:var(--s4)">ค่าเริ่มต้นของ adaptive engine</h3>
         <div style="margin-top:var(--s3)">
@@ -723,14 +920,21 @@ function chartDifficulty(){
     <text x="${P.l-7}" y="${y(1)+4}" text-anchor="end" font-family="var(--fm)" font-size="10" fill="var(--pro-mute)">ยาก</text>
     <text x="${P.l-7}" y="${y(0)+4}" text-anchor="end" font-family="var(--fm)" font-size="10" fill="var(--pro-mute)">ง่าย</text></svg>`;
 }
-function radar(){
+function skillPairs(){
   const T=H.trials,l6=T.slice(-6),f6=T.slice(0,6);
-  const ax=[['GC',Math.round(clamp(S.p.ability*100,0,100)),Math.round(clamp((S.p.ability+S.p.learn*T.length)*100,0,100))],
-   ['FA',Math.round(mean(f6.map(t=>t.GAS))),Math.round(mean(l6.map(t=>t.GAS)))],
-   ['FS',Math.round(mean(f6.map(t=>t.GSI))),Math.round(mean(l6.map(t=>t.GSI)))],
-   ['EN',Math.round(mean(f6.map(t=>t.GES))),Math.round(mean(l6.map(t=>t.GES)))],
-   ['TM',Math.round(mean(f6.map(t=>100-t.RT/25))),Math.round(mean(l6.map(t=>100-t.RT/25)))],
-   ['CD',Math.round(mean(f6.map(t=>t.GDI))),Math.round(mean(l6.map(t=>t.GDI)))]];
+  const pair=(fk,lk)=>({first:Math.round(mean(f6.map(fk))),last:Math.round(mean(l6.map(lk)))});
+  return {
+    GC:{first:Math.round(clamp(S.p.ability*100,0,100)),last:Math.round(clamp((S.p.ability+S.p.learn*T.length)*100,0,100))},
+    FA:pair(t=>t.GAS,t=>t.GAS),
+    FS:pair(t=>t.GSI,t=>t.GSI),
+    EN:pair(t=>t.GES,t=>t.GES),
+    TM:pair(t=>100-t.RT/25,t=>100-t.RT/25),
+    CD:pair(t=>t.GDI,t=>t.GDI),
+  };
+}
+function radar(){
+  const sp=skillPairs();
+  const ax=Object.entries(sp).map(([k,v])=>[k,v.first,v.last]);
   const cx=138,cy=132,R=90;
   const pt=(i,v)=>{const a=-Math.PI/2+i*Math.PI/3,r=R*clamp(v,0,100)/100;return[cx+r*Math.cos(a),cy+r*Math.sin(a)]};
   const poly=v=>v.map((x,i)=>pt(i,x).join(',')).join(' ');
@@ -854,24 +1058,31 @@ SC.dash=()=>{
       <td><span class="act ${live?'live':cls}">${nm}</span></td><td>${DIMS[l.dim].label}</td>
       <td>${l.from} → ${l.to} ${DIMS[l.dim].unit}</td></tr>`}).join('');
   const weak=M.filter(m=>m.k!=='RT').sort((a,b)=>a.val-b.val)[0];
+  const sp=skillPairs();
+  const recTop=recommendMode(p);
 
   return `<div class="screen">
   <div class="prohead"><div>
     <span class="eyebrow">แฟ้มผู้รับบริการ</span>
-    <h1>${p.avatar} ${p.name||p.nick} · อายุ ${p.age} ปี · ${p.dx}</h1>
+    <h1>${ico(avKey(p.avatar))} ${p.name||p.nick} · อายุ ${p.age} ปี · ${p.dx}</h1>
     <div class="meta">${p.code} · MACS ${p.macs} · GMFCS ${p.gmfcs} · มือที่ฝึก: ${p.hand} · ${T.length} trials สะสม<br>
     คาลิเบรต — F_rest ${r1(p.cal.rest)} N · F_comf ${r1(p.cal.comf)} N · PRF ${r1(p.cal.prf)} N · F_work ${r1(p.cal.prf-p.cal.rest)} N</div></div>
     <div class="proact"><button class="btn">ส่งออก CSV</button>
       <button class="btn" data-editprofile="1">แก้ไขแฟ้ม</button>
       <button class="btn solid">ล็อกพารามิเตอร์เอง</button></div></div>
 
-  <nav class="subnav"><a href="#s-ov">ภาพรวม</a><a href="#s-en">Adaptive engine</a>
+  <nav class="subnav"><a href="#s-ov">ภาพรวม</a><a href="#s-ai">AI แนะนำโหมด</a><a href="#s-en">Adaptive engine</a>
     <a href="#s-pt">รูปแบบการจับ</a><a href="#s-me">วิธีคำนวณค่า</a><a href="#s-rc">คำแนะนำ</a></nav>
 
   <div id="s-ov" class="pgrid">
     <div class="procard"><h3>โปรไฟล์ความสามารถ 6 แกน</h3>
       <p class="note">GC ความสามารถกำมือ · FA ความแม่น · FS ความนิ่ง · EN ความทน · TM เวลาตอบสนอง · CD การกระจายแรง — อิงกับ calibration ของเด็กคนนี้ ไม่ใช่ค่ามาตรฐานประชากร</p>
-      ${radar()}</div>
+      ${radar()}
+      <div class="starlegend">${SKILLS.map(sk=>{const lvl=skillLevel(sp[sk.key].last),now=sp[sk.key].last;
+        return `<div class="slcell"><span>${ico(sk.icon)} ${sk.key}</span>
+          <span class="stars sm">${Array.from({length:5},(_,i)=>`<span class="${i<lvl?'on':''}">${ico(i<lvl?'star-fill':'star')}</span>`).join('')}</span>
+          <span class="num">${now}/100</span></div>`}).join('')}</div>
+      <p class="note" style="margin-top:8px">แถวดาวคือสิ่งที่เด็กเห็นในต้นไม้ทักษะ ตัวเลขข้างหลังคือค่าเดียวกันที่แดชบอร์ดนี้ใช้ — สองมุมมองอ่านจากข้อมูลชุดเดียวกัน</p></div>
     <div>
       <div class="mcards">${M.map(m=>`<div class="mc"><div class="k">${m.k}</div>
         <div class="v">${m.val}<span style="font-size:13px;color:var(--pro-mute)">${m.unit}</span></div>
@@ -883,6 +1094,23 @@ SC.dash=()=>{
         <p class="note">เส้นดำ = ประวัติในแฟ้ม · เส้นส้ม = trials ที่เพิ่งเล่นในมุมมองเด็ก · จุดล่างคือผลรายครั้ง — ระบบไม่ได้เลือกระดับความยาก แต่เลือกอัตราสำเร็จเป้าหมาย แล้วปล่อยให้ความยากเลื่อนตามเอง</p>
         ${chartConvergence()}</div>
     </div></div>
+
+  <div class="procard" id="s-ai" style="margin-top:var(--s3)">
+    <span class="eyebrow">AI Recommendation Engine · ระบบเสนอ ไม่ได้ตัดสินใจแทน</span>
+    <h3>วันนี้ระบบแนะนำ ${MODE_META[recTop.mode].label} สำหรับ${p.nick}</h3>
+    <p class="note">คำนวณจากความสามารถกำมือ (${Math.round(p.ability*100)}/100) เทียบกับความสนใจต่อหน้าจอ (${Math.round(p.screenEngagement*100)}%)
+      และช่วงสมาธิ (${Math.round(p.attentionSpan*100)}%) — สองค่าหลังตั้งไว้ตอนลงทะเบียน ปรับได้ที่ปุ่ม "แก้ไขแฟ้ม"</p>
+    <div class="recrows">${Object.entries(recTop.scores).map(([k,v])=>{
+      const lbl=k==='toy'?'Toy Only':k==='game'?'Game Only':'Toy + Game';
+      const avail=p.hasToy||k==='game', top=k===recTop.top;
+      return `<div class="recrow ${top?'top':''} ${avail?'':'off'}">
+        <span class="rl">${lbl}</span><div class="rbar"><i style="width:${Math.round(v*100)}%"></i></div>
+        <span class="rv">${Math.round(v*100)}%</span>${!avail?'<span class="rna">ไม่มีลูกบอลวันนี้</span>':''}</div>`}).join('')}</div>
+    <ul class="reclist">${recTop.reasons.map(r=>`<li>${r}</li>`).join('')}</ul>
+    <span class="eyebrow" style="margin:var(--s3) 0 7px;display:block">ถ้าประเมินใหม่ทุกสัปดาห์ (จำลองจากอัตราการเรียนรู้ในแฟ้ม)</span>
+    <div class="trailrow">${weeklyRecommendationTrail(p).map((w,i,arr)=>
+      `<span class="trailstep ${i===arr.length-1?'now':''}" title="สัปดาห์ ${w.week} · ${MODE_META[w.mode].label}">${ico(MODE_META[w.mode].em)}</span>${i<arr.length-1?'<span class="arrow">→</span>':''}`).join('')}</div>
+  </div>
 
   <div class="stack">
     <div class="procard" id="s-en"><span class="eyebrow">เส้นทางการปรับความยาก</span>
@@ -908,7 +1136,7 @@ SC.dash=()=>{
           <div class="rec"><span class="n">02</span><div><b>คงแรงเป้าหมายไว้ที่ ${H.engine.diff.target_force}% อีก 1 สัปดาห์</b>
             <p>engine กำลังไล่ปรับ ${DIMS[PRIORITY[Math.min(H.engine.pi,2)]].label} อยู่ การเปลี่ยนหลายมิติพร้อมกันจะทำให้แยกไม่ออกว่าผลมาจากอะไร</p></div></div>
           <div class="rec"><span class="n">03</span><div><b>ตรวจสอบสัญญาณล้า</b>
-            <p class="flag" style="margin-top:4px">⚑ ระบบตัดจบเซสชันเอง 1 ครั้ง — แรงสูงสุดใน block สุดท้ายตกจาก block แรกเกินร้อยละ 20</p></div></div>
+            <p class="flag" style="margin-top:4px">${ico('flag')} ระบบตัดจบเซสชันเอง 1 ครั้ง — แรงสูงสุดใน block สุดท้ายตกจาก block แรกเกินร้อยละ 20</p></div></div>
         </div></div>
     </div>
 
@@ -941,12 +1169,49 @@ SC.dash=()=>{
 /* ==========================================================================
    Router
    ========================================================================== */
-function render(){
+/* พรีวิว animation ได้โดยไม่ต้องไปแก้ค่าใน OS: เปิด ?motion=1 ปิด ?motion=0
+   ค่าปกติยังเคารพ prefers-reduced-motion ของผู้ใช้จริงเหมือนเดิม */
+(function motionPref(){
+  const q=new URLSearchParams(location.search).get('motion');
+  if(q==='1')try{localStorage.setItem('rehaverse.motion','on')}catch(e){}
+  if(q==='0')try{localStorage.removeItem('rehaverse.motion')}catch(e){}
+  let on=false;try{on=localStorage.getItem('rehaverse.motion')==='on'}catch(e){}
+  if(on)document.documentElement.dataset.motion='on';
+})();
+const stillMode=()=>matchMedia('(prefers-reduced-motion: reduce)').matches
+                 && document.documentElement.dataset.motion!=='on';
+
+function paint(){
   cancelAnimationFrame(G.raf);
   $('root').innerHTML=SC[S.screen]();
   topbar();
   if(S.screen==='game')mountGame();
+  if(S.screen==='home')mountRoad();
   window.scrollTo({top:0,behavior:'instant'});
+}
+/* เปลี่ยนหน้าด้วยม่าน : สลับเนื้อหาตอนที่ม่านบังจออยู่ จึงไม่เห็นการกระพริบ
+   ใช้ timer แทน animationend เพราะถ้า animation ถูกปิด event จะไม่ยิงแล้วค้าง
+   สุ่มรูปแบบและสีทุกครั้ง แต่ไม่ซ้ำอันเดิมติดกัน จะได้ไม่จำเจ */
+const WIPE=300;
+const WIPE_STYLES=['curtain','iris','doors','blob','stripes'];
+const WIPE_TINTS=['var(--grape)','var(--sun)','var(--berry)','var(--aqua)','var(--grass)'];
+let prevScreen=null,wiping=false,lastWipe=-1,lastTint=-1;
+const pickNot=(n,last)=>{let i;do{i=Math.floor(Math.random()*n)}while(n>1&&i===last);return i};
+function render(){
+  const changed=prevScreen!==null&&S.screen!==prevScreen;
+  prevScreen=S.screen;
+  if(!changed||wiping||stillMode()){paint();return}
+  wiping=true;
+  lastWipe=pickNot(WIPE_STYLES.length,lastWipe);
+  lastTint=pickNot(WIPE_TINTS.length,lastTint);
+  const w=$('wipe'),style='s-'+WIPE_STYLES[lastWipe];
+  w.style.setProperty('--tint',WIPE_TINTS[lastTint]);
+  w.className='wipe on '+style+' in';
+  setTimeout(()=>{
+    paint();
+    w.className='wipe on '+style+' out';
+    setTimeout(()=>{w.className='wipe';wiping=false},WIPE);
+  },WIPE);
 }
 function openEditor(p,isNew){S.draft=p;S.editingNew=isNew;S.screen='editor';render()}
 
@@ -992,6 +1257,7 @@ document.addEventListener('input',e=>{
     const lb=$('lbl-'+t.dataset.path);
     if(lb){const fmts={'cal.rest':v=>r1(v)+' N','cal.comf':v=>r1(v)+' N','cal.prf':v=>r1(v)+' N',
       'ability':v=>Math.round(v*100)+'/100','learn':v=>(v*100).toFixed(1)+'%','nTrials':v=>v+' trials',
+      'screenEngagement':v=>Math.round(v*100)+'%','attentionSpan':v=>Math.round(v*100)+'%',
       'start.target_force':v=>v+' %F_work','start.tolerance_band':v=>'± '+v+'%','start.hold_time':v=>r1(v)+' วินาที',
       'level':v=>'ด่าน '+v+' · '+LEVELS[v-1].th};
       lb.textContent=(fmts[t.dataset.path]||(x=>x))(v);}
@@ -1003,6 +1269,22 @@ document.addEventListener('input',e=>{
   }
 });
 render();
+
+/* ดวงอาทิตย์มองตามเมาส์ — ผูกครั้งเดียว เพราะ .mascot อยู่นอก #root จึงไม่ถูก render ทับ
+   ไม่ปิดตาม prefers-reduced-motion เพราะเป็นการตอบสนองต่อการชี้ ไม่ใช่ animation ที่เล่นเอง */
+(function eyesFollowCursor(){
+  const m=document.querySelector('.mascot');if(!m)return;
+  const pupils=m.querySelectorAll('.pupil');if(!pupils.length)return;
+  /* เขียน transform ตรง ๆ ไม่ผ่าน rAF — แค่ 2 setAttribute ต่อครั้ง ราคาถูกกว่าการคิวไว้
+     และถ้าแท็บถูกซ่อน rAF จะไม่ทำงาน ทำให้ตาค้างอยู่ที่เดิม */
+  addEventListener('pointermove',e=>{
+    const b=m.getBoundingClientRect(),cx=b.left+b.width/2,cy=b.top+b.height/2;
+    const ang=Math.atan2(e.clientY-cy,e.clientX-cx);
+    const reach=Math.min(1,Math.hypot(e.clientX-cx,e.clientY-cy)/420)*3.4;
+    const tx=r1(Math.cos(ang)*reach),ty=r1(Math.sin(ang)*reach);
+    pupils.forEach(p=>p.setAttribute('transform',`translate(${tx} ${ty})`));
+  },{passive:true});
+})();
 
 /* --------------------------------------------------------------------------
    ที่เก็บถาวร
