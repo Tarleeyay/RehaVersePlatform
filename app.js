@@ -1169,17 +1169,37 @@ SC.dash=()=>{
 /* ==========================================================================
    Router
    ========================================================================== */
-/* พรีวิว animation ได้โดยไม่ต้องไปแก้ค่าใน OS: เปิด ?motion=1 ปิด ?motion=0
-   ค่าปกติยังเคารพ prefers-reduced-motion ของผู้ใช้จริงเหมือนเดิม */
+/* ภาพเคลื่อนไหว: ค่าปกติตามค่า prefers-reduced-motion ของเครื่อง
+   ผู้ใช้กดปุ่มมุมขวาล่างเพื่อบังคับเปิด/ปิดเองได้ และจำค่าไว้ (?motion=1 / 0 ก็ได้)
+   ไม่ตั้งค่าเริ่มต้นเป็นเปิดเสมอ เพราะเด็ก CP บางคนไวต่อการเคลื่อนไหวและแสงกะพริบ */
+const MOTION_KEY='rehaverse.motion';
 (function motionPref(){
   const q=new URLSearchParams(location.search).get('motion');
-  if(q==='1')try{localStorage.setItem('rehaverse.motion','on')}catch(e){}
-  if(q==='0')try{localStorage.removeItem('rehaverse.motion')}catch(e){}
-  let on=false;try{on=localStorage.getItem('rehaverse.motion')==='on'}catch(e){}
-  if(on)document.documentElement.dataset.motion='on';
+  let v=null;try{v=localStorage.getItem(MOTION_KEY)}catch(e){}
+  if(q==='1')v='on'; else if(q==='0')v='off'; else if(q==='auto')v=null;
+  if(v==='on'||v==='off'){
+    document.documentElement.dataset.motion=v;
+    try{localStorage.setItem(MOTION_KEY,v)}catch(e){}
+  }else{
+    delete document.documentElement.dataset.motion;
+    try{localStorage.removeItem(MOTION_KEY)}catch(e){}
+  }
 })();
-const stillMode=()=>matchMedia('(prefers-reduced-motion: reduce)').matches
-                 && document.documentElement.dataset.motion!=='on';
+function stillMode(){
+  const m=document.documentElement.dataset.motion;
+  if(m==='on')return false;
+  if(m==='off')return true;
+  return matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+function paintMotionBtn(){
+  const b=$('motionbtn');if(!b)return;
+  const on=!stillMode();
+  b.innerHTML=ico(on?'sparkle':'moon');
+  b.classList.toggle('off',!on);
+  b.setAttribute('aria-pressed',String(on));
+  const label=on?'ปิดภาพเคลื่อนไหว':'เปิดภาพเคลื่อนไหว';
+  b.setAttribute('aria-label',label);b.title=label;
+}
 
 function paint(){
   cancelAnimationFrame(G.raf);
@@ -1269,6 +1289,15 @@ document.addEventListener('input',e=>{
   }
 });
 render();
+
+/* ปุ่มสลับภาพเคลื่อนไหว — อยู่นอก #root จึงผูก listener ครั้งเดียวพอ */
+paintMotionBtn();
+$('motionbtn').addEventListener('click',()=>{
+  const next=stillMode()?'on':'off';
+  document.documentElement.dataset.motion=next;
+  try{localStorage.setItem(MOTION_KEY,next)}catch(e){}
+  paintMotionBtn();
+});
 
 /* ดวงอาทิตย์มองตามเมาส์ — ผูกครั้งเดียว เพราะ .mascot อยู่นอก #root จึงไม่ถูก render ทับ
    ไม่ปิดตาม prefers-reduced-motion เพราะเป็นการตอบสนองต่อการชี้ ไม่ใช่ animation ที่เล่นเอง */

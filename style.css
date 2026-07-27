@@ -69,6 +69,22 @@ body[data-face="pro"] .scene{display:none}
   html:not([data-motion="on"]) .c3{left:57%}
   html:not([data-motion="on"]) .c4{left:84%}
 }
+/* กดปิดเอง = ปิดทุกกรณี แม้เครื่องจะไม่ได้ตั้ง reduced-motion ไว้ */
+html[data-motion="off"] *{animation:none!important;transition:none!important}
+html[data-motion="off"] .c1{left:5%}
+html[data-motion="off"] .c2{left:33%}
+html[data-motion="off"] .c3{left:57%}
+html[data-motion="off"] .c4{left:84%}
+
+/* ---- ปุ่มสลับภาพเคลื่อนไหว ---- */
+.motionbtn{position:fixed;right:var(--s3);bottom:var(--s3);z-index:40;width:44px;height:44px;
+  border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--grape);
+  box-shadow:0 4px 0 rgba(18,58,77,.16);transition:transform .16s,box-shadow .16s}
+.motionbtn:hover{transform:translateY(-2px);box-shadow:0 6px 0 rgba(18,58,77,.16)}
+.motionbtn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(18,58,77,.16)}
+.motionbtn.off{color:var(--ink-3)}
+.motionbtn .ic{width:21px;height:21px}
+body[data-face="pro"] .motionbtn{box-shadow:0 0 0 1px var(--pro-line);color:var(--sea)}
 
 /* ---- ม่านเปลี่ยนหน้า : 5 รูปแบบ สุ่มสลับกัน ---- */
 .wipe{position:fixed;inset:0;z-index:60;pointer-events:none;display:none;overflow:hidden;--tint:var(--grape)}
