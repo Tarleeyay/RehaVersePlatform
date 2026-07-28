@@ -102,10 +102,12 @@
   <p class="foot" id="foot"></p>
 </div>
 <script src="app.js"></script>
-<!-- Vercel Web Analytics : เว็บนี้เป็น static ล้วน ไม่มี build step จึงใช้ script tag
-     ไม่ใช่แพ็กเกจ @vercel/analytics ซึ่งเป็นของ React/Next โดยเฉพาะ
-     ไฟล์ /_vercel/insights/script.js ถูกเสิร์ฟโดย Vercel เอง ต้องเปิด Web Analytics
-     ในหน้า Project ก่อน มิฉะนั้นจะได้ 404 (บนเครื่อง local ก็จะ 404 เป็นปกติ) -->
+<!-- Vercel Web Analytics + Speed Insights : เว็บนี้เป็น static ล้วน ไม่มี build step
+     จึงใช้ script tag ไม่ใช่แพ็กเกจ @vercel/analytics และ @vercel/speed-insights
+     ซึ่งเป็นของ React/Next โดยเฉพาะ ไฟล์ใต้ /_vercel/ ถูกเสิร์ฟโดย Vercel เอง
+     ต้องเปิดฟีเจอร์ในหน้า Project ก่อน มิฉะนั้นจะได้ 404
+     (บนเครื่อง local ก็จะ 404 เป็นปกติ) -->
 <script defer src="/_vercel/insights/script.js"></script>
+<script defer src="/_vercel/speed-insights/script.js"></script>
 </body>
 </html>
