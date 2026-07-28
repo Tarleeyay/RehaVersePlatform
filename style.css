@@ -414,7 +414,67 @@ body[data-face="pro"] .eyebrow{font-family:var(--fm);font-size:10px;font-weight:
 .gbar .quit:hover{transform:translateY(-2px);box-shadow:0 6px 0 rgba(18,58,77,.14)}
 .helpline{color:var(--ink);font-size:12.5px;font-weight:500;padding:0 var(--s1)}
 
+/* ---- ด่าน 1 : Shape Match (กล้องจับมือ) ---- */
+.ghead{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap;margin-bottom:var(--s3)}
+.ghead .back{margin:0}
+.ghead .eyebrow{margin:0}
+.reachwrap{background:linear-gradient(180deg,#BFE9FF 0%,#9BDCF5 42%,#CFF0D2 100%)}
+/* ภาพกล้องซ้อนอยู่หลังฉาก กลับซ้าย–ขวาให้เหมือนกระจก เด็กจะได้รู้ว่ามือตัวเองอยู่ตรงไหน */
+.reachwrap>video,.handwrap>video,.skywrap>video,.denwrap>video,.gardenwrap>video,
+.trekwrap>video,.cookwrap>video,.questwrap>video{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;transform:scaleX(-1);opacity:.26;filter:saturate(.7)}
+/* ฉากใต้น้ำของด่าน 2 และท้องฟ้ากลางคืนของด่าน 3 มืดกว่า ภาพกล้องจึงต้องจางลงอีกไม่งั้นกลบตัวละคร */
+.handwrap>video,.skywrap>video{opacity:.16}
+.reachwrap>svg,.reachwrap>canvas,.handwrap>svg,.handwrap>canvas,
+.skywrap>svg,.skywrap>canvas{z-index:1}
+.skywrap{background:linear-gradient(180deg,#243B6B 0%,#3A5A9B 46%,#7BA7D6 82%,#BFE0F0 100%)}
+.denwrap{background:radial-gradient(120% 90% at 62% 40%,#5E8F5A 0%,#3E6B48 48%,#22423A 100%)}
+.gardenwrap{background:linear-gradient(180deg,#CDEBFF 0%,#B7E4C7 52%,#8ED18C 100%)}
+.trekwrap{background:radial-gradient(120% 95% at 50% 30%,#59C6D6 0%,#2E8C96 46%,#16545E 100%)}
+.cookwrap{background:linear-gradient(180deg,#E8B77A 0%,#C98F55 46%,#8A5B32 100%)}
+.questwrap{background:radial-gradient(130% 100% at 50% 26%,#6C5CE7 0%,#3E3596 46%,#1E1B4B 100%)}
+.denwrap>video,.gardenwrap>video,.trekwrap>video,.cookwrap>video,.questwrap>video{opacity:.15}
+.denwrap>svg,.denwrap>canvas,.gardenwrap>svg,.gardenwrap>canvas,
+.trekwrap>svg,.trekwrap>canvas,.cookwrap>svg,.cookwrap>canvas,
+.questwrap>svg,.questwrap>canvas{z-index:1}
+.camstate{position:absolute;inset:0;z-index:2;display:none;place-items:center;padding:var(--s3);
+  background:rgba(11,59,70,.5);backdrop-filter:blur(3px)}
+.camstate.on{display:grid}
+.camcard{background:#fff;border-radius:var(--rl);padding:var(--s4);max-width:400px;text-align:center;
+  box-shadow:var(--pop-2)}
+.camico{width:56px;height:56px;border-radius:50%;background:var(--grape);color:#fff;
+  display:grid;place-items:center;margin:0 auto var(--s2)}
+.camico .ic{width:28px;height:28px}
+.camico.spin{animation:camspin 1.4s linear infinite}
+@keyframes camspin{to{transform:rotate(360deg)}}
+.camcard b{display:block;font-family:var(--fd);font-size:18px;line-height:1.45;color:var(--ink)}
+.camcard p{margin:var(--s1) 0 var(--s3);font-size:13.5px;line-height:1.75;color:var(--ink-2)}
+.camacts{display:flex;flex-direction:column;gap:var(--s1)}
+.camacts .big{width:100%}
+.handchip{display:inline-flex;align-items:center;gap:7px;background:#fff;border-radius:999px;
+  padding:7px 14px;font-size:12.5px;color:var(--ink);box-shadow:0 3px 0 rgba(18,58,77,.12)}
+.handchip .ic{width:16px;height:16px;color:var(--ink-3)}
+.handchip.open .ic{color:var(--grass-deep)}
+.handchip.grab{background:var(--sun-soft)}
+.handchip.grab .ic{color:var(--sun-deep)}
+.hbar{display:block;width:46px;height:6px;border-radius:999px;background:#E3EDF3;overflow:hidden}
+.hbar u{display:block;height:100%;border-radius:999px;background:var(--grass);
+  text-decoration:none;transition:width .08s linear}
+.handchip.grab .hbar u{background:var(--sun-deep)}
+.camoff{margin-left:8px}
+.camoff button,.linkbtn{background:none;border:0;padding:0;font:inherit;color:var(--grape);
+  text-decoration:underline;cursor:pointer}
+.privnote{display:flex;align-items:flex-start;gap:7px;margin:var(--s2) 0 0;padding:0 var(--s1);
+  font-size:11.5px;line-height:1.7;color:var(--ink-2)}
+.privnote .ic{width:15px;height:15px;flex:none;margin-top:2px;color:var(--ink-3)}
+
 /* ---- reward ---- */
+.unlock{display:flex;align-items:center;gap:var(--s2);text-align:left;margin:var(--s4) auto 0;
+  max-width:420px;background:var(--grass);color:#fff;border-radius:var(--rl);
+  padding:var(--s3) var(--s4);box-shadow:0 5px 0 var(--grass-deep)}
+.unlock .ic{width:26px;height:26px;flex:none}
+.unlock b{display:block;font-family:var(--fd);font-size:16px;line-height:1.45}
+.unlock span{display:block;font-size:12.5px;opacity:.92;line-height:1.6}
 .rewardmark{width:88px;height:88px;border-radius:50%;background:var(--sun);color:#fff;
   display:grid;place-items:center;margin:0 auto var(--s4);box-shadow:0 6px 0 var(--sun-deep);
   animation:bob 2.4s ease-in-out infinite}
