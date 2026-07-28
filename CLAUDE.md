@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 RehaVerse — a single-page prototype UI for an adaptive pediatric hand-rehabilitation platform ("RehaBall"). It is a static, dependency-free site: `index.html` + `style.css` + `app.js`. There is no build step, no bundler, no package.json, and no test suite — open `index.html` directly in a browser (or serve the folder statically) to run it.
 
-Everything (state, screens, simulation engine, charts, particle FX) lives in the single `app.js` file (~1150 lines, minified/dense style — no semicolons-as-style-choice, short var names). Read `app.js` in sections by grep-ing the section header comments (`/* === ... === */`) rather than loading it all at once.
+Everything (state, screens, simulation engine, charts, particle FX, all 8 game levels) lives in the single `app.js` file (~3600 lines, minified/dense style — no semicolons-as-style-choice, short var names). Read `app.js` in sections by grep-ing the section header comments (`/* === ... === */`) rather than loading it all at once.
 
 ## Running / deploying
 

@@ -331,7 +331,7 @@ SC.landing=()=>`
       <circle cx="58" cy="330" r="8" fill="#6C5CE7"/>
       <circle cx="388" cy="196" r="6" fill="#5DBE3E"/>
     </svg>
-    <img src="rehaball.png" alt="ลูกบอล RehaBall" width="620" height="613">
+    <img src="rehaball-2.png" alt="ลูกบอล RehaBall" width="960" height="969">
   </div></div>
 </div>`;
 

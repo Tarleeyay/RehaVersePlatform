@@ -400,8 +400,11 @@ body[data-face="pro"] .eyebrow{font-family:var(--fm);font-size:10px;font-weight:
 @media(min-width:640px){.stTrain{display:block;font-family:var(--fm);font-size:9px;color:var(--ink-3);margin-top:2px}}
 
 /* ---- เกม ---- */
+/* ฉากใต้น้ำของด่าน 2 : ภาพวาดวางทับ gradient เดิม ซึ่งยังเป็น fallback ถ้าโหลดภาพไม่ได้
+   ด่านอื่นเขียนทับด้วย background ของตัวเอง (.skywrap ฯลฯ) ภาพนี้จึงไม่หลุดไปด่านอื่น */
 .gamewrap{position:relative;border-radius:var(--rl);overflow:hidden;border:4px solid #fff;
-  background:radial-gradient(120% 80% at 50% 15%,#3AA0AB 0%,#1C6B79 45%,#0B3B46 100%);
+  background:url("art/scene-reef.jpg") center/cover no-repeat,
+             radial-gradient(120% 80% at 50% 15%,#3AA0AB 0%,#1C6B79 45%,#0B3B46 100%);
   touch-action:none;user-select:none;cursor:grab;aspect-ratio:16/10;min-height:380px;box-shadow:var(--pop-2)}
 .gamewrap:active{cursor:grabbing}
 .gamewrap>svg,.gamewrap>canvas{position:absolute;inset:0;width:100%;height:100%}
