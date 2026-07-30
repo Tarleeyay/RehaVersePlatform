@@ -3474,6 +3474,126 @@ function gameKeyOf(level){
 }
 
 /* ==========================================================================
+   กราฟชุดเดียวกัน แต่ขยับสด ๆ ระหว่างที่ยังเล่นอยู่
+   --------------------------------------------------------------------------
+   เดิมกราฟห้าแท่งขึ้นตอนจบรอบเท่านั้น ระหว่างเล่นเด็กจึงไม่เห็นเลยว่า
+   สิ่งที่กำลังทำอยู่มีผลกับอะไร แถบนี้ใช้คลาส .sb* ชุดเดิมทั้งหมด
+   จะได้อ่านเป็น "กราฟเดิมที่ย่อลง" ไม่ใช่ของใหม่ที่หน้าตาไม่เหมือนกัน
+
+   แท่งขยับสองจังหวะ
+   1) ทุกครั้งที่ภารกิจย่อยจบ : คิดจาก trial ที่บันทึกแล้ว ด้วย
+      STAGE_STATS[...].get() ตัวเดียวกับหน้าสรุป เลขจึงตรงกันเสมอ
+   2) ระหว่างภารกิจย่อยที่ยังไม่จบ : เฉพาะตัวชี้วัดที่สูตรของมันนิยามได้
+      บนข้อมูลบางส่วนจริง ๆ (ตาราง LIVE_PARTIAL) เช่นความแม่น/ความนิ่งของแรง
+      ระหว่างที่ยังบีบค้างอยู่ — ใช้สูตรเดียวกับตอนปิด trial เป๊ะ ๆ
+      จึงเป็น "ค่าที่จะได้ถ้าจบตรงนี้" ไม่ใช่ตัวเลขที่คิดขึ้นมาใหม่
+      ตัวที่ต้องรู้ผลแพ้ชนะก่อน (ความสำเร็จ, RT) ไม่มีค่าระหว่างทาง
+      จึงปล่อยให้ขยับทีละ trial ไม่ยัดตัวเลขปลอมให้มัน
+
+   จอเด็กระหว่างเล่นไม่มีตัวเลข (ดูหมายเหตุหัวส่วนเกม) แถบนี้จึงมีแต่แท่ง
+   กริด และขีดสถิติเดิม ส่วนเลข 0–100 ผลต่าง และป้ายสถิติใหม่แบบเต็ม
+   ยังอยู่บนหน้าสรุปที่เด็กหยุดเล่นแล้ว
+   ========================================================================== */
+const LIVE={host:null,rows:[],key:null,raf:null,next:0};
+const LIVE_MS=110;                                // อัปเดตราว 9 ครั้ง/วินาที ที่เหลือให้ transition ทำต่อ
+const LIVE_MIN=10;                                // ตัวอย่างขั้นต่ำก่อนเริ่มโชว์ กันแท่งกระตุกตอนเพิ่งเริ่มบีบ
+
+/* ค่าแรงระหว่างทาง — สูตรเดียวกับที่ endTrial()/endGate() ใช้ตอนปิด trial */
+function forceLive(samples,aim,band){
+  if(!samples||samples.length<LIVE_MIN)return null;
+  const inb=samples.filter(f=>Math.abs(f-aim)<=band);
+  const base=inb.length?inb:samples,mu=mean(base)||1;
+  const sd=Math.sqrt(mean(base.map(f=>(f-mu)**2))||0);
+  return{GSI:clamp(100*(1-sd/Math.max(mu,1)),0,100),
+         GAS:clamp(100*(1-mean(samples.map(f=>Math.abs(f-aim)))/Math.max(1,aim)),0,100),
+         GES:clamp(100*inb.length/samples.length,0,100)};
+}
+/* ความตรงของเส้นทาง = ระยะตรงจากจุดที่คว้า มาถึงตำแหน่งตอนนี้ ÷ ระยะที่ลากมาจริง
+   ค่านี้ลู่เข้าหาค่าตอนปิด trial พอดี เพราะตอนนั้นตำแหน่งตอนนี้คือช่องที่วาง */
+const pathLive=(o,plen)=>!o||plen<40?null:
+  {PATH:clamp(100*Math.hypot(o.hx-o.x,o.hy-o.y)/plen,0,100)};
+
+const LIVE_PARTIAL={
+  bubble:()=>G.active?forceLive(G.samples,H.engine.diff.target_force,H.engine.diff.tolerance_band):null,
+  rocket:()=>R.gate?forceLive(R.samples,R.gate.alt,R.gate.diff.tolerance_band):null,
+  shape :()=>SH.held?pathLive(SH.shape,SH.plen):null,
+  /* ด่าน 6 การข้ามแนวกลางตัวรู้ผลได้ทันทีที่มือผ่านเส้น ไม่ต้องรอจบภารกิจ */
+  trek  :()=>TK.held?{...(pathLive(TK.gem,TK.plen)||{}),
+    CROSS:TK.minX<TK_C.x&&TK.maxX>TK_C.x?100:0}:null,
+};
+
+/* สร้าง DOM ครั้งเดียวตอนเข้าด่าน แล้วอัปเดตด้วยการเขียน style.width ตรง ๆ
+   ไม่ประกอบ innerHTML ใหม่ทุกรอบ ไม่งั้น transition จะเริ่มนับหนึ่งใหม่ตลอด
+   และขีดสถิติเดิมจะกระพริบ */
+LIVE.mount=function(){
+  this.stop();
+  const key=S.lastGame,defs=STAGE_STATS[key],bar=document.querySelector('.gbar');
+  if(!defs||!bar||!bar.parentNode)return;
+  const rec=S.p&&S.p.stats&&S.p.stats[String(S.sel)];
+  const bestOf=k=>rec&&rec.m[k]?rec.m[k].best:null;
+  const body=defs.map(d=>{const b=bestOf(d.k);
+    return `<div class="sbrow nodata" data-k="${d.k}">
+      <span class="sblab"><b>${d.label}${d.sub?` <i>${d.sub}</i>`:''}</b></span>
+      <span class="sbplot"><i class="sbbar" style="width:0%"></i>${
+        b==null?'':`<u class="sbtick" style="left:${b}%"></u>`}</span>
+      <span class="sbflag">${ico('flag')}</span></div>`}).join('');
+  /* มีสามอย่างที่เข้ารหัสด้วยสี (แท่งเขียว = รอบนี้ / ขีดม่วง = สถิติเดิม /
+     แท่งทอง = แซงแล้ว) จึงต้องมี legend เหมือนกราฟบนหน้าสรุป ไม่ปล่อยให้เดาจากสี
+     ด่านที่ยังไม่เคยเล่น ไม่มีขีดและไม่มีทอง จึงบอกเป็นประโยคแทน ไม่ตั้ง key ลอย ๆ
+     ที่ไม่มีอะไรบนกราฟให้ชี้ถึง */
+  const el=document.createElement('div');
+  el.className='statcard livecard';
+  el.innerHTML=`<b>ผลงานรอบนี้</b>
+    ${rec?`<div class="sblegend"><span><i class="k bar"></i>รอบนี้</span>
+      <span><i class="k tick"></i>สถิติเดิม</span>
+      <span><i class="k gold"></i>${ico('flag')} แซงแล้ว</span></div>`
+        :'<small>ด่านนี้ยังไม่มีสถิติเดิมมาเทียบ รอบนี้จะกลายเป็นสถิติแรก</small>'}
+    <figure class="sbchart compact live"><div class="sbplotarea">${body}
+      <div class="sbrow sbaxis"><span></span>
+        <span class="sbticks"><i>0</i><i>50</i><i>100</i></span><span></span></div>
+    </div></figure>`;
+  bar.parentNode.insertBefore(el,bar);
+  this.host=el;this.key=key;
+  this.rows=defs.map(d=>{const r=el.querySelector(`.sbrow[data-k="${d.k}"]`);
+    return{row:r,bar:r.querySelector('.sbbar'),best:bestOf(d.k),w:-1,over:false,cheered:false}});
+  /* rAF ของตัวเอง ไม่ไปแทรกใน loop ของเกมทั้งแปด (แปดที่ = แปดที่ที่จะเพี้ยนแยกกัน)
+     หน่วงเป็นช่วง ๆ เพราะแท่งมีไว้ให้ชำเลืองมอง ไม่ต้องเขียน DOM ทุกเฟรม */
+  const step=now=>{this.raf=requestAnimationFrame(step);
+    if(now<this.next)return;this.next=now+LIVE_MS;this.tick()};
+  this.raf=requestAnimationFrame(step);
+};
+LIVE.stop=function(){
+  cancelAnimationFrame(this.raf);this.raf=null;
+  if(this.host&&this.host.parentNode)this.host.parentNode.removeChild(this.host);
+  this.host=null;this.rows=[];this.key=null;this.next=0;
+};
+LIVE.tick=function(){
+  if(!this.host)return;
+  const defs=STAGE_STATS[this.key];if(!defs)return;
+  const done=roundTrials(),n=done.length;
+  const pf=LIVE_PARTIAL[this.key],part=pf?pf():null;
+  defs.forEach((d,i)=>{
+    const r=this.rows[i];if(!r)return;
+    const base=d.get(done),p=part&&part[d.k]!=null?part[d.k]:null;
+    /* รวมภารกิจที่ยังทำอยู่เข้าไปเป็นอีกหนึ่งครั้ง = ค่าเฉลี่ยที่จะได้ถ้าจบตรงนี้ */
+    let v=p==null?base:(base==null?p:(base*n+p)/(n+1));
+    v=v==null?null:Math.round(clamp(v,0,100));
+    const w=v==null?0:v;
+    if(w!==r.w){r.w=w;r.bar.style.width=w+'%'}
+    r.row.classList.toggle('nodata',v==null);
+    /* แซงสถิติเดิม : ทองทั้งแท่ง + ธง + ประกายบนจอเกม ไม่ใช้สีอย่างเดียวเป็นตัวบอก
+       เข้าที่ v>best แต่ถอยออกที่ v<best-2 (hysteresis) ไม่งั้นค่าที่แกว่งอยู่
+       ตรงเส้นพอดีจะสลับสีวินาทีละหลายครั้ง ซึ่งกวนสายตามากกว่าเป็นรางวัล */
+    const over=v!=null&&r.best!=null&&(r.over?v>=r.best-2:v>r.best);
+    if(over!==r.over){r.over=over;r.row.classList.toggle('rec-new',over)}
+    if(over&&!r.cheered){r.cheered=true;
+      r.row.classList.remove('lvpop');void r.row.offsetWidth;r.row.classList.add('lvpop');
+      if(FX.cv)FX.burst(320,372,18,['#FFD98A','#F7E5C6','#7BD256'],120);
+    }
+  });
+};
+
+/* ==========================================================================
    เหรียญ · ตู้กาชา · ของเล่นสะสมที่เดินอยู่ในพื้นหลัง
    --------------------------------------------------------------------------
    ตัวละครในตู้เป็นของที่ออกแบบขึ้นใหม่ทั้งหมด ไม่ใช่มีมที่มีชื่อเจ้าของอยู่แล้ว
@@ -4265,6 +4385,9 @@ function paint(){
      ฟังก์ชัน mount ของหน้าใหม่จะลงทะเบียนใหม่เองถ้าหน้านั้นใช้กล้อง */
   HT.onstate=null;
   if(!camScreen())HT.stop();
+  /* แถบกราฟสดถือ ref ไปที่ DOM ของหน้าเดิม ต้องปลดก่อนเขียนทับ
+     mount ใหม่อยู่ท้ายฟังก์ชัน หลังจาก mount ของเกมตั้ง S.lastGame แล้ว */
+  LIVE.stop();
   /* บอกโซนและชื่อหน้าปัจจุบันให้ CSS รู้ โซนใช้ตาราง ZONES ตัวเดียวกับม่านเปลี่ยนหน้า
      ฉากพื้นหลังจะหรี่ลงในโซน play เพราะแผนที่และจอเกมมีภาพของตัวเองอยู่แล้ว
      ต้องมี data-screen แยกด้วย เพราะหน้าสรุปอยู่โซน play แต่ควรได้ฉากเต็ม
@@ -4284,6 +4407,9 @@ function paint(){
   if(S.screen==='cook')mountCook();
   if(S.screen==='quest')mountQuest();
   if(S.screen==='home')mountRoad();
+  /* ต้องอยู่หลัง mount ของเกม เพราะอ่าน S.lastGame กับ S.runFrom ที่ mount ตั้งไว้
+     ตัวมันเช็ค .gbar เอง หน้าที่ไม่ใช่จอเกมจึงไม่มีอะไรเกิดขึ้น */
+  LIVE.mount();
   window.scrollTo({top:0,behavior:'instant'});
 }
 /* เปลี่ยนหน้าด้วยม่าน : สลับเนื้อหาตอนที่ม่านบังจออยู่ จึงไม่เห็นการกระพริบ

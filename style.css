@@ -786,6 +786,44 @@ body[data-face="pro"] .eyebrow{font-family:var(--fm);font-size:10px;font-weight:
   .sblab b{font-size:12.5px}
 }
 
+/* ---- กราฟชุดเดิมแบบสด บนจอเกม ----
+   ใช้คลาส .sb* ทั้งหมดโดยตั้งใจ จะได้เป็นกราฟเดียวกันที่ย่อลง
+   ไม่ใช่มิเตอร์หน้าตาใหม่ที่บังเอิญวัดเรื่องเดียวกัน
+   ไม่มีคอลัมน์ตัวเลข เพราะจอเด็กระหว่างเล่นไม่มีตัวเลข
+   แต่ยังเหลือคอลัมน์ที่สามไว้แคบ ๆ ให้ธง "แซงสถิติเดิม" ยืน
+   ถ้าตัดคอลัมน์นี้ทิ้ง แกนล่าง (.sbaxis ที่มีสาม span) จะหลุดจากกริดทันที */
+.livecard{--surf:#fff;--gl:rgba(18,58,77,.13);--lw:minmax(78px,32%);--vw:16px;
+  margin-top:var(--s3);background:#fff;border:3px solid #fff;border-radius:var(--rm);
+  padding:10px var(--s3) 8px;box-shadow:var(--pop)}
+.livecard>b{font-size:13px}
+.livecard>small{font-size:11px;line-height:1.55;margin-top:0}
+.livecard .sblegend{gap:var(--s2);margin:2px 0 0;font-size:10.5px}
+.sblegend .k.gold{width:14px;height:9px;border-radius:0 2px 2px 0;background:var(--sun-deep)}
+.livecard .sblegend .ic{width:12px;height:12px;color:var(--sun-deep);margin-right:1px}
+.sbchart.live{margin-top:5px}
+.sbchart.live .sblab{padding:3px 0}
+.sbchart.live .sblab b{font-size:11.5px;line-height:1.35;font-weight:600}
+.sbchart.live .sblab b i{font-size:9px;padding:0 4px}
+/* transition คือสิ่งที่ทำให้แท่งไหลต่อเนื่องทั้งที่เขียนค่าแค่ ~9 ครั้ง/วินาที
+   ปิด motion แล้ว transition ถูกตัดทิ้ง แท่งจะกระโดดไปค่าที่ถูกต้องเลย ไม่ต้องมีค่าสำรอง */
+.sbchart.live .sbbar{height:9px;transition:width .18s linear}
+.sbchart.live .sbtick{top:3px;bottom:3px}
+.sbchart.live .sbaxis{margin-top:3px}
+/* ธงโผล่เฉพาะแถวที่แซงสถิติเดิมแล้ว — สีทองอย่างเดียวไม่พอเป็นตัวบอก */
+.sbflag{display:flex;justify-content:flex-end;align-items:center;opacity:0;transition:opacity .2s}
+.sbflag .ic{width:13px;height:13px;color:var(--sun-deep)}
+.sbrow.rec-new .sbflag{opacity:1}
+/* จังหวะที่แซง : แท่งสว่างวาบครั้งเดียวแล้วกลับปกติ ไม่ใช่กะพริบต่อเนื่อง
+   ชื่อคลาสต้องขึ้นต้น lv- : ".pop" เฉย ๆ มีอยู่แล้ว เป็นวงแหวนตอนถึงหมุดบนแผนที่
+   (position:absolute;inset:-12px) แถวกราฟจึงหลุดออกจาก flow และสูงพันกว่า px
+   เป็นการชนชื่อแบบเดียวกับ .rec และ .big ที่เคยเจอมาแล้ว */
+.sbrow.lvpop .sbbar{animation:lvPop .55s ease-out}
+@keyframes lvPop{0%{filter:brightness(1)}26%{filter:brightness(1.55)}100%{filter:brightness(1)}}
+@media(max-width:560px){
+  .livecard{--lw:minmax(70px,38%);padding:8px 10px 6px}
+  .sbchart.live .sblab b{font-size:11px}
+}
+
 /* ---- ต้นไม้ทักษะ ---- */
 .skilltree{position:relative;aspect-ratio:1/1;max-width:500px;margin:0 auto;background:#fff;
   border:4px solid #fff;border-radius:50%;box-shadow:var(--pop-2)}
