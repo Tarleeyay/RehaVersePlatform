@@ -173,7 +173,7 @@ function blankProfile(){
     macs:3,gmfcs:2,cal:{rest:.4,comf:2.0,prf:5.0},
     ability:.30,learn:.011,nTrials:24,start:{target_force:30,tolerance_band:14,hold_time:1.0},
     screenEngagement:.5,attentionSpan:.5,
-    level:1,mode:'both',hasToy:true,seeds:0};
+    level:1,mode:'both',hasToy:true,seeds:0,coins:0,toys:{}};
 }
 let codeSeq=300;
 const nextCode=()=>'CP-0'+(codeSeq++);
@@ -221,9 +221,14 @@ try{
 /* ==========================================================================
    สถานะ
    ========================================================================== */
-const S={screen:'landing',p:null,sel:1,live:0,draft:null,editingNew:false,lastGame:null,unlocked:false};
+/* runFrom = หลักใน H.trials ตอนเริ่มรอบ ใช้ตัดเอา trial ของรอบนี้เท่านั้น (ด่าน 2/3)
+   runStats = ผลสรุป 5 ตัวชี้วัดของรอบที่เพิ่งจบ ใช้วาดบนหน้าสรุป */
+const S={screen:'landing',p:null,sel:1,live:0,draft:null,editingNew:false,lastGame:null,unlocked:false,
+  runStats:null,runFrom:0,coinGain:0,lastRoll:null,spinning:null};
 let H={trials:[],engine:newEngine({target_force:30,tolerance_band:14,hold_time:1})};
-function loadProfile(p){S.p=p;S.sel=p.level;S.live=0;G.results=[];const r=simulate(p);H={trials:r.trials,engine:r.engine};H.rng=r.rng}
+/* ล้างผลการหมุนกับเหรียญที่เพิ่งได้ด้วย ไม่งั้นสลับเด็กแล้วจะเห็นของเด็กคนก่อน */
+function loadProfile(p){S.p=p;S.sel=p.level;S.live=0;G.results=[];S.lastRoll=null;S.coinGain=0;S.spinning=null;
+  const r=simulate(p);H={trials:r.trials,engine:r.engine};H.rng=r.rng}
 
 /* ==========================================================================
    VFX : ระบบอนุภาคบน canvas
@@ -291,7 +296,11 @@ function topbar(){
     right=`<span class="pill">${ico(avKey(S.p.avatar))} ${S.p.nick}</span>
            ${S.screen!=='skills'?`<span class="pill">${ico('sparkle')} ทักษะ <button data-go="skills">ดู</button></span>`:`<span class="pill">${ico('compass')} เกาะ <button data-go="home">ดู</button></span>`}
            <span class="pill">${ico(m.em)} ${m.label} <button data-go="mode">เปลี่ยน</button></span>
-           <span class="pill">${ico('leaf')} ${S.p.seeds}</span>`;
+           <span class="pill">${ico('leaf')} ${S.p.seeds}</span>
+           <span class="pill">${ico('diamond')} ${S.p.coins||0} <button data-go="market">ร้าน</button></span>`;
+  }else if(S.screen==='market'&&S.p){
+    right=`<span class="pill">${ico(avKey(S.p.avatar))} ${S.p.nick}</span>
+           <span class="pill">${ico('diamond')} ${S.p.coins||0}</span>`;
   }
   $('topbar').innerHTML=`<div class="mark"><b>RehaVerse</b><span>adaptive rehab platform</span></div>${right}`;
   $('foot').innerHTML=pro
@@ -428,6 +437,245 @@ const smoothPath=pts=>pts.reduce((d,pt,i,a)=>{
           +`${r1(p2.x-(p3.x-p1.x)/6)} ${r1(p2.y-(p3.y-p1.y)/6)}, ${p2.x} ${p2.y}`;
 },'');
 
+/* ==========================================================================
+   ฉากบนแผนที่ด่าน — ต้นไม้ พุ่ม ดอกไม้ กระต่าย ผีเสื้อ เมฆ
+   --------------------------------------------------------------------------
+   วาดด้วย SVG มือทั้งหมด ไม่ใช้ภาพ raster และไม่ใช้อิโมจิ ตามระบบดีไซน์เดิม
+   ตัวละครต้องขยับได้ ภาพนิ่งจึงใช้แทนไม่ได้ (ดูหมายเหตุเรื่องตัวละครในไฟล์นี้)
+
+   ตำแหน่งทุกชิ้นเลี่ยง "กล่องของหมุดด่าน" ซึ่งกว้าง 108 สูง 105 หน่วย viewBox
+   และอยู่กึ่งกลางพิกัดใน ROAD (translate(-50%,-50%)) ช่องว่างที่ใช้ได้จริงคือ
+     - แถบฟ้า y 0–88            : ไม่มีหมุดแตะเลย (หมุดด่าน 8 เริ่มที่ y 94)
+     - แถบพื้น y 350–380        : ต่ำกว่าป้ายที่ลงลึกสุด (y 349)
+     - ใต้หมุดยอดเนิน           : หมุด 2/4/6/8 จบที่ y 249/239/231/199
+                                  ใต้นั้นจึงเป็นพื้นว่างผืนใหญ่
+   ถ้าย้ายพิกัดใน ROAD หรือแก้ขนาดหมุด ต้องไล่ดูตำแหน่งพวกนี้ใหม่
+   ========================================================================== */
+const SC_G={d:'#3F9A26',m:'#5DBE3E',l:'#7BD256',p:'#9BE07A'};   // เขียวสี่ระดับ
+/* ห่อสองชั้นทุกชิ้น : ชั้นนอกถือ transform เป็น attribute (ตำแหน่ง/ขนาด)
+   ชั้นในให้ CSS ขยับ — ถ้าใส่ animation ทับชั้นนอก transform attribute จะถูกลบทิ้ง
+   cls ว่าง = ไม่ใส่ชั้นในเลย ชิ้นนั้นนิ่งสนิทและไม่มี <g> เกินมา
+
+   **จำนวน animation คือต้นทุนหลักของหน้านี้ ไม่ใช่จำนวนรูปทรง**
+   วัดจริงบนเดสก์ท็อป : ไม่มีฉาก 114 fps / ฉากที่ขยับทุกชิ้น (112 animation) 50 fps /
+   ฉากเดิมแต่ปิด animation 117 fps — รูปทรงเกือบ 750 ชิ้นแทบไม่มีต้นทุน
+   แต่การขยับ <g> ใน SVG ทีละชิ้นกินเวลาเมนเทรดหนัก เพราะไม่ขึ้น compositor
+   จึงต้องขยับ "เป็นกลุ่ม" ด้วย .sc-breeze แล้วเหลือ animation เดี่ยวไว้เฉพาะ
+   ชิ้นที่คนดูจับตาได้จริง (ต้นไม้ใหญ่ เมฆ ผีเสื้อ กระต่าย)
+   ถ้าจะเพิ่มของประดับ ให้เพิ่มรูปทรงในกลุ่มเดิม อย่าเพิ่ม animation ต่อชิ้น */
+const scAt=(x,y,s,cls,d,inner)=>`<g transform="translate(${x} ${y}) scale(${s})">`
+  +(cls?`<g class="${cls}" style="--d:${d}s">${inner}</g>`:inner)+`</g>`;
+/* ลมพัดเป็นกลุ่ม : เลื่อนทั้งกลุ่มเล็กน้อย ไม่ใช้การหมุน
+   ถ้าหมุนกลุ่มที่กว้าง 300 หน่วย ชิ้นปลายกลุ่มจะกวาดเป็นวงกว้างจนดูผิดธรรมชาติ */
+const scBreeze=(d,inner)=>`<g class="sc-breeze" style="--d:${d}s">${inner}</g>`;
+
+/* ต้นไม้ : พุ่มทรงกลมซ้อนกัน ไล่จากเข้มล่างไปสว่างบน ให้ดูมีปริมาตรแบบภาพแบน
+   ก้อนเข้มสุด (#2E7D1C) วางเป็นฐานหลังทุกก้อน ทำหน้าที่เป็นเส้นขอบให้ทรงพุ่ม
+   ถ้าไม่มีก้อนนี้ ต้นไม้จะกลืนไปกับเนินเขียวด้านหลังทันที */
+const scTree=(x,y,s,v,d,cls='sc-sway')=>scAt(x,y,s,cls,d,
+  `<ellipse cx="1" cy="6" rx="15" ry="3.5" fill="#2E7D1C" opacity=".2"/>
+   <rect x="-4.5" y="-20" width="9" height="26" rx="4.5" fill="#A9743C"/>
+   <rect x="-4.5" y="-20" width="4" height="26" rx="2" fill="#8A5A2B" opacity=".55"/>`+(v
+  ?`<ellipse cx="0" cy="-39" rx="19" ry="25" fill="#2E7D1C"/>
+    <ellipse cx="1" cy="-41" rx="16" ry="21" fill="${SC_G.m}"/>
+    <ellipse cx="-7" cy="-33" rx="11" ry="14" fill="${SC_G.d}"/>
+    <ellipse cx="6" cy="-47" rx="9.5" ry="12" fill="${SC_G.l}"/>
+    <ellipse cx="-2" cy="-54" rx="6" ry="7" fill="${SC_G.p}"/>`
+  :`<circle cx="0" cy="-32" r="23" fill="#2E7D1C"/>
+    <circle cx="0" cy="-33" r="20" fill="${SC_G.m}"/>
+    <circle cx="-13" cy="-25" r="12.5" fill="${SC_G.d}"/>
+    <circle cx="13" cy="-27" r="12" fill="${SC_G.l}"/>
+    <circle cx="-3" cy="-42" r="11.5" fill="${SC_G.p}"/>`));
+
+/* พุ่มไม้เตี้ย : วางชิดขอบล่าง ก้อนกลมจะถูกขอบการ์ดตัดเองพอดี */
+const scBush=(x,y,s,d,cls='')=>scAt(x,y,s,cls,d,
+  `<circle cx="-11" cy="1" r="11" fill="#2E7D1C"/>
+   <circle cx="7" cy="-2" r="14" fill="#2E7D1C"/>
+   <circle cx="19" cy="2" r="10" fill="#2E7D1C"/>
+   <circle cx="-11" cy="0" r="9.5" fill="${SC_G.d}"/>
+   <circle cx="7" cy="-3" r="12.5" fill="${SC_G.m}"/>
+   <circle cx="19" cy="1" r="8.5" fill="${SC_G.l}"/>
+   <circle cx="2" cy="-9" r="6.5" fill="${SC_G.p}" opacity=".85"/>`);
+
+/* ดอกไม้ : กลีบห้ากลีบวางรอบเกสร โยกจากโคนก้าน */
+const SC_FL=[['#FF8FB8','#FFD98A'],['#FFC94F','#fff'],['#fff','#FFC94F'],
+             ['#A99BF5','#FFF1D6'],['#FF9FD0','#FFD98A']];
+const scFlower=(x,y,s,c,d,cls='')=>{const[pet,eye]=SC_FL[c];
+  return scAt(x,y,s,cls,d,
+    `<path d="M0 0 C -1.5 -7 1.5 -10 0 -15" stroke="${SC_G.d}" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+     <ellipse cx="-4" cy="-7" rx="4" ry="2.4" fill="${SC_G.m}" transform="rotate(-18 -4 -7)"/>
+     <g transform="translate(0 -17)">${
+       [0,1,2,3,4].map(i=>`<ellipse cx="0" cy="-5.4" rx="3.5" ry="5.4" fill="${pet}"
+         transform="rotate(${i*72})"/>`).join('')}
+       <circle r="2.9" fill="${eye}"/></g>`)};
+
+/* กระจุกหญ้า : สามใบบางโค้งคนละทาง */
+const scTuft=(x,y,s,d,cls='')=>scAt(x,y,s,cls,d,
+  `<path d="M0 0 Q3 -8 7 -12" stroke="${SC_G.d}" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+   <path d="M0 0 Q-3 -7 -6 -11" stroke="${SC_G.m}" stroke-width="2.4" fill="none" stroke-linecap="round"/>
+   <path d="M0 0 Q0 -8 1 -14" stroke="${SC_G.d}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`);
+
+/* เมฆในกรอบแผนที่ : ใช้การลอยขึ้นลงสั้น ๆ ไม่ใช่การไถลข้ามจอ
+   เพราะถ้าปิด animation เมฆที่ไถลจะค้างนอกกรอบ ต้องมีตำแหน่งสำรองอีกชุด */
+const scCloud=(x,y,s,d)=>scAt(x,y,s,'sc-drift',d,
+  `<g fill="#fff" opacity=".93"><ellipse cx="-16" cy="3" rx="17" ry="11"/>
+   <ellipse cx="4" cy="-4" rx="21" ry="15"/><ellipse cx="22" cy="4" rx="16" ry="10"/>
+   <rect x="-30" y="2" width="56" height="10" rx="5"/></g>`);
+
+/* ผีเสื้อ : ปีกกระพือด้วย scaleX ตัวลอยเป็นวงเล็ก ๆ
+   ต้องตัวโตพอ (scale ~1.6) และหุบปีกไม่เกิน .6 — เล็กกว่านี้หรือหุบลึกกว่านี้
+   จังหวะที่ปีกหุบจะเหลือแต่ลำตัว อ่านเป็นขีดเล็ก ๆ ไม่ใช่ผีเสื้อ */
+const scFly=(x,y,s,c,i)=>scAt(x,y,s,`sc-fly f${i}`,0,
+  `<g class="sc-wing w${i}"><ellipse cx="-7" cy="-4" rx="7.5" ry="9" fill="${c}" opacity=".95"/>
+   <ellipse cx="7" cy="-4" rx="7.5" ry="9" fill="${c}" opacity=".95"/>
+   <ellipse cx="-6" cy="6" rx="5.5" ry="6" fill="${c}" opacity=".72"/>
+   <ellipse cx="6" cy="6" rx="5.5" ry="6" fill="${c}" opacity=".72"/>
+   <circle cx="-7" cy="-5" r="2.2" fill="#fff" opacity=".55"/>
+   <circle cx="7" cy="-5" r="2.2" fill="#fff" opacity=".55"/></g>
+   <rect x="-1.3" y="-8" width="2.6" height="17" rx="1.3" fill="#4B3A2A"/>
+   <path d="M-1 -8 q-4 -5 -6 -6 M1 -8 q4 -5 6 -6" stroke="#4B3A2A" stroke-width="1.1"
+     fill="none" stroke-linecap="round"/>`);
+
+/* กลีบดอกปลิว : ทรงหยดน้ำ ไม่ใช่วงรี วงรีเล็ก ๆ อ่านเป็นเศษผงมากกว่ากลีบดอก */
+const scPetal=(x,y,s,c,d)=>scAt(x,y,s,'sc-spinslow',d,
+  `<path d="M0 -6 C4.5 -3 4.5 3 0 6 C-4.5 3 -4.5 -3 0 -6Z" fill="${c}" opacity=".9"/>`);
+
+/* รถวิ่งบนถนนข้ามเนิน : อยู่ในชั้น bg จึงลอดหลังถนนสีเหลืองและหลังหมุดด่าน
+   วิ่งทางเดียวจากซ้ายไปขวา ล้อไม่หมุน — ขนาดเท่านี้ไม่มีใครเห็น จ่าย animation ไปก็เปล่า
+   ตัวรถเลื่อนด้วย translate อย่างเดียว ส่วนการขึ้นลงตามเนินฝังไว้ในคีย์เฟรม
+   (ไม่ใช้ offset-path เพราะมันคิดเป็น CSS px ไม่ใช่หน่วย viewBox — ดูหมายเหตุ mountRoad) */
+/* สามชั้น ไม่ใช่สองชั้นเหมือนของประดับอื่น และห้ามยุบรวม :
+   scale ต้องอยู่ "ข้างใน" ชั้นที่ CSS ขยับ ไม่ใช่ข้างนอก
+   ถ้า scale อยู่ชั้นนอก ระยะ translate ของคีย์เฟรมจะถูกคูณด้วย scale ไปด้วย
+   (ตอนแรกวางไว้ชั้นนอกที่ scale 1.25 → translate 500px ไปตกที่ 625 หน่วย viewBox
+    รถจึงหลุดขอบขวาตอน 64% ของรอบ แล้วหายไปเลยราวเจ็ดวินาที) */
+const scCar=(y,s,body,roof)=>`<g transform="translate(0 ${y})">
+  <g class="sc-car"><g transform="scale(${s})">
+    <ellipse cx="0" cy="8" rx="17" ry="2.8" fill="#2E7D1C" opacity=".2"/>
+    <path d="M-8 -5 q2 -7 6 -7 h7 q4 0 6 7z" fill="${roof}"/>
+    <path d="M-5.4 -5 q1.4 -4.6 4 -4.6 h2.2 v4.6z" fill="#DFF3FC"/>
+    <path d="M1.4 -5 v-4.6 h2.4 q2.4 0 3.6 4.6z" fill="#DFF3FC"/>
+    <rect x="-16" y="-5" width="32" height="10" rx="4.2" fill="${body}"/>
+    <rect x="-16" y="-2" width="32" height="3" rx="1.5" fill="#000" opacity=".08"/>
+    <circle cx="12.6" cy="-1" r="1.7" fill="#FFF1D6"/>
+    <circle cx="-9" cy="6" r="3.6" fill="#33404A"/><circle cx="-9" cy="6" r="1.5" fill="#CFD9DF"/>
+    <circle cx="9" cy="6" r="3.6" fill="#33404A"/><circle cx="9" cy="6" r="1.5" fill="#CFD9DF"/>
+  </g></g></g>`;
+
+/* กระจุกดอก/หญ้าเล็กบนเนินหลัง : นิ่งทั้งหมด ใช้เติมพื้นที่เขียวว่าง ๆ ให้ไม่โล่ง */
+const scSpeck=(x,y,s,c)=>`<g transform="translate(${x} ${y}) scale(${s})">
+  <path d="M0 0 Q2 -5 5 -7 M0 0 Q-2 -4 -4 -6" stroke="${SC_G.d}" stroke-width="1.8"
+    fill="none" stroke-linecap="round" opacity=".55"/>
+  ${c?`<circle cx="0" cy="-8" r="2.4" fill="${c}" opacity=".9"/>
+      <circle cx="0" cy="-8" r="1" fill="#fff" opacity=".8"/>`:''}</g>`;
+
+/* กระต่าย : ตัวละครประจำฉาก หูกระตุก ตากะพริบ จมูกขยับ
+   วาดสดไม่ใช้ <use> เพราะต้องสั่งหูกับตาแยกส่วน (เหตุผลเดียวกับมาสคอตพระอาทิตย์) */
+const scRabbit=(x,y,s)=>`<g transform="translate(${x} ${y}) scale(${s})">
+  <ellipse cx="2" cy="2" rx="27" ry="6" fill="#3F9A26" opacity=".18"/>
+  <g class="sc-hop">
+    <ellipse cx="0" cy="-17" rx="19" ry="17" fill="#fff"/>
+    <ellipse cx="-19" cy="-4" rx="9" ry="6" fill="#fff"/>
+    <ellipse cx="15" cy="-3" rx="8" ry="5.5" fill="#fff"/>
+    <circle cx="19" cy="-20" r="6" fill="#F4F9FC"/>
+    <g class="sc-ear l"><ellipse cx="-9" cy="-45" rx="6" ry="16" fill="#fff" transform="rotate(-9 -9 -45)"/>
+      <ellipse cx="-9" cy="-45" rx="3" ry="11" fill="#FFC2DA" transform="rotate(-9 -9 -45)"/></g>
+    <g class="sc-ear r"><ellipse cx="7" cy="-46" rx="6" ry="16" fill="#fff" transform="rotate(8 7 -46)"/>
+      <ellipse cx="7" cy="-46" rx="3" ry="11" fill="#FFC2DA" transform="rotate(8 7 -46)"/></g>
+    <ellipse cx="-1" cy="-27" rx="15" ry="13.5" fill="#fff"/>
+    <g class="sc-blink"><circle cx="-7" cy="-29" r="2.6" fill="#3A2B22"/>
+      <circle cx="6" cy="-29" r="2.6" fill="#3A2B22"/></g>
+    <ellipse cx="-10" cy="-23" rx="3.4" ry="2.2" fill="#FFC2DA" opacity=".75"/>
+    <ellipse cx="9" cy="-23" rx="3.4" ry="2.2" fill="#FFC2DA" opacity=".75"/>
+    <path d="M-1 -24 l-2.6 2.2 h5.2z" fill="#FF9FBE"/>
+  </g></g>`;
+
+/* ประกอบฉาก : bg = หลังถนน (ฟ้า เนิน เมฆ ต้นไม้ไกล) / fg = หน้าถนน (พื้น ดอกไม้ สัตว์)
+   แยกสองชั้นเพื่อให้ถนนอยู่กลาง ฉากไกลจึงอยู่หลัง ฉากใกล้อยู่หน้า ได้ระยะลึก
+   ทั้งสองชั้นอยู่ใต้หมุดด่าน (หมุดมี z-index 2) หมุดจึงยังกดได้ปกติ */
+function roadScene(layer){
+  const svg=c=>`<svg class="road${layer}" viewBox="0 0 ${RVW} ${RVH}"
+    preserveAspectRatio="none" aria-hidden="true">${c}</svg>`;
+  if(layer==='bg')return svg(
+    /* เนินสี่ชั้น ทึบทั้งหมด ไม่ใช้ opacity — ต้องการค่าความสว่างที่แยกกันชัด
+       ถ้าไล่ด้วย opacity ของเขียวเดียวกัน ทุกชั้นจะกลืนกันเป็นก้อนเดียว
+       และต้นไม้ด้านหน้าจะจมหายไปในพื้น */
+    /* ลำดับชั้นสำคัญ : เนินไกล -> ต้นไม้ไกล -> เนินสอง -> ทางข้ามเนิน + รถ ->
+       เนินสาม/สี่ -> ดอกหน้าบนเนิน
+       รถจึงดูเหมือนวิ่งอยู่บนเนินลูกที่สอง และถูกเนินหน้า
+       ถนนสีเหลือง กับหมุดด่าน บังเป็นระยะ ได้ความลึกจริง */
+    `<path fill="#CDF2B4" d="M0 232 q118 -26 236 -8 t236 -14 t250 6 t278 -12 V380 H0Z"/>`
+    /* ต้นไม้ไกล : นิ่งสนิท ขนาดเท่านี้ไม่มีใครเห็นว่าไหว จ่าย animation ไปก็เปล่า */
+    +`<g opacity=".45">${[[86,240,.42],[268,236,.38],[418,230,.44],[560,240,.4],
+      [700,232,.38],[830,238,.42],[978,234,.4]]
+      .map(([x,y,s],i)=>scTree(x,y,s,i%2,0,'')).join('')}</g>`
+    +`<path fill="#B0E892" d="M0 268 q140 -24 280 -6 t250 -12 t240 8 t230 -8 V380 H0Z"/>`
+    /* ถนนข้ามเนิน : เส้นดินบาง ๆ ให้รถมีที่วิ่ง โค้งน้อย ๆ ตรงกับคีย์เฟรมของรถ
+       ห้ามใส่เส้นประกลางถนนสีขาว มันจะกลายเป็นถนนอีกสายที่มาแข่งกับถนนหลักสีเหลือง
+       ซึ่งเป็นตัวเดินเรื่องของหน้านี้ ถนนเนินต้องจางและบางกว่าเสมอ */
+    +`<path d="M-20 264 Q250 252 500 262 T1020 256" fill="none" stroke="#D8C39C"
+       stroke-width="7" stroke-linecap="round" opacity=".6"/>`
+    +scCar(262,1.25,'#E8543F','#C43A28')
+    +`<path fill="#94DE72" d="M0 306 q160 -20 320 -4 t260 -10 t250 8 t170 -6 V380 H0Z"/>
+      <path fill="#7BD256" d="M0 340 q180 -14 360 -2 t300 -8 t180 6 t130 -4 V380 H0Z"/>`
+    /* ดอกหน้าเล็กบนสันเนิน วางหลังเนินที่มันเกาะอยู่ จึงต้องมาหลังสุดของกลุ่มเนิน */
+    +[[40,300,.9,'#FFC94F'],[112,296,.8,''],[186,299,.85,'#fff'],[262,295,.9,'#FF9FD0'],
+      [340,300,.8,''],[416,296,.85,'#FFC94F'],[492,299,.9,'#fff'],[566,295,.8,''],
+      [644,300,.85,'#A99BF5'],[720,296,.9,'#fff'],[798,299,.8,''],[872,295,.85,'#FFC94F'],
+      [948,300,.9,'#FF9FD0'],[996,296,.8,''],
+      [74,334,.95,'#fff'],[158,330,.85,''],[236,333,.9,'#FFC94F'],[314,329,.8,'#fff'],
+      [392,334,.95,''],[470,330,.85,'#FF9FD0'],[548,333,.9,''],[626,329,.8,'#fff'],
+      [704,334,.95,'#FFC94F'],[782,330,.85,''],[860,333,.9,'#A99BF5'],[938,329,.8,''],
+      [990,333,.9,'#fff']].map(([x,y,s,c])=>scSpeck(x,y,s,c)).join('')
+    +[[140,50,1,0],[470,38,1.25,1.3],[792,54,.9,2.2],[300,74,.66,.7],[640,44,.8,3.1]]
+      .map(([x,y,s,d])=>scCloud(x,y,s,d)).join('')
+    /* ผีเสื้อสามตัว ตัวเลขท้ายคือหมายเลขเส้นทางบิน ไม่ใช่ delay
+       ทั้งสามต้องใช้ @keyframes คนละชุด — ถ้าใช้ชุดเดียวแล้วเลื่อนแค่ delay
+       ทุกตัวจะวาดเส้นทางเดียวกันเป๊ะ เห็นชัดว่าเป็นของก๊อปกันมา */
+    +[[352,112,1.7,'#FF9FD0',1],[826,116,1.5,'#A99BF5',2],[566,92,1.3,'#FFC94F',3]]
+      .map(([x,y,s,c,i])=>scFly(x,y,s,c,i)).join('')
+    +[[236,148,1.3,'#FFC2DA',0],[520,136,1.15,'#FFD98A',1.6],[886,60,1.1,'#C9EFFC',2.8],
+      [120,116,1.2,'#EBE8FE',4.1],[690,146,1,'#FF9FD0',5.3]]
+      .map(([x,y,s,c,d])=>scPetal(x,y,s,c,d)).join(''));
+  return svg(
+    /* ต้นไม้หน้า — ต้นสูงวางในช่องใต้หมุดยอดเนิน ซึ่งพื้นว่างตั้งแต่ y 242–260 ลงมา
+       ต้นเล็กวางในช่องแคบระหว่างหมุด ยอดต้องไม่แตะกล่องหมุด ตามที่ระบุหัวหมวด */
+    /* ต้นไม้ใหญ่สี่ต้น : ชิ้นเดียวที่ได้ animation เดี่ยว เพราะโตพอให้เห็นการโยกจริง */
+    [[196,374,1.45,0,0],[464,376,1.4,1,1.1],[732,374,1.4,0,.4],[958,352,1.15,1,1.4]]
+      .map(([x,y,s,v,d])=>scTree(x,y,s,v,d)).join('')
+    /* ต้นเล็กแบ่งสองกลุ่ม พัดคนละจังหวะ รวมสอง animation แทนแปด */
+    +scBreeze(0,[[128,372,.8,1],[396,370,.8,0],[664,370,.8,1],[900,373,.7,1]]
+      .map(([x,y,s,v])=>scTree(x,y,s,v,0,'')).join(''))
+    +scBreeze(2.4,[[262,368,.85,1],[528,368,.85,1],[796,368,.85,0],[36,375,.72,0]]
+      .map(([x,y,s,v])=>scTree(x,y,s,v,0,'')).join(''))
+    +scBreeze(1.2,[[74,372,.9],[152,370,.8],[286,369,.85],[336,373,.75],[420,371,.9],
+      [548,370,.8],[608,373,.75],[688,371,.85],[818,369,.9],
+      [866,373,.75],[936,370,.8],[994,372,.7]]
+      .map(([x,y,s])=>scBush(x,y,s,0)).join(''))
+    /* ดอกไม้กระจายหลายระดับความลึก ไม่ใช่แถวเดียวติดขอบล่าง
+       ชุดแรกเป็นดอกลึกในช่องใต้ยอดเนิน สองชุดหลังเรียงตามแนวพื้นหน้าสุด
+       แบ่งสามกลุ่มให้พัดไม่พร้อมกัน จะได้ไม่ดูเหมือนภาพเดียวเลื่อนไปทั้งแผง */
+    +scBreeze(.6,[[170,300,1,2],[216,284,.9,0],[242,310,.85,4],
+      [430,292,1,1],[470,276,.9,3],[502,300,.85,2],
+      [698,288,1,4],[742,272,.9,1],[774,296,.85,0],
+      [930,262,.95,3],[968,286,.85,2],[990,238,.8,0]]
+      .map(([x,y,s,c])=>scFlower(x,y,s,c,0)).join(''))
+    +scBreeze(3.1,[[22,366,1,0],[100,364,.95,2],[232,362,.85,4],[306,364,.95,0],
+      [408,362,.85,2],[516,363,.9,4],[578,364,.95,0],[712,362,.95,2],
+      [846,364,1,4],[978,363,.9,1]]
+      .map(([x,y,s,c])=>scFlower(x,y,s,c,0)).join(''))
+    +scBreeze(1.8,[[58,358,.85,1],[186,356,1,3],[358,357,.9,1],[462,356,1,3],
+      [634,357,.85,1],[770,356,.9,3],[912,358,.85,0]]
+      .map(([x,y,s,c])=>scFlower(x,y,s,c,0)).join(''))
+    +scBreeze(4.2,[[44,379,1],[130,378,.9],[208,377,.85],[268,379,1],[322,378,.9],
+      [388,379,.85],[444,377,1],[500,379,.9],[560,378,.85],
+      [620,379,1],[676,377,.9],[748,379,.85],[806,378,1],
+      [880,379,.9],[948,377,.85],[1000,379,1]]
+      .map(([x,y,s])=>scTuft(x,y,s,0)).join(''))
+    /* กระต่ายสองตัว วางในช่องที่ไม่มีหมุดทับ ตัวใหญ่ขวา ตัวเล็กซ้ายเป็นลูก */
+    +scRabbit(776,346,1)+scRabbit(246,340,.6));
+}
+
 SC.home=()=>{
   const p=S.p,lv=LEVELS.find(l=>l.n===S.sel),g=lv.modes[p.mode],
         others=Object.keys(lv.modes).filter(k=>k!==p.mode);
@@ -461,11 +709,13 @@ SC.home=()=>{
   </div>
 
   <div class="roadwrap"><div class="road" id="road">
+    ${roadScene('bg')}
     <svg class="roadsvg" viewBox="0 0 ${RVW} ${RVH}" preserveAspectRatio="none" aria-hidden="true">
       <path class="roadedge" d="${dpath}"/>
       <path class="roadline" id="roadline" d="${dpath}"/>
       <path class="roaddash" d="${dpath}"/>
     </svg>
+    ${roadScene('fg')}
     ${stops}
     <div class="traveller" id="trav" data-av="${avKey(p.avatar)}">
       <span class="pop"></span>${ico(avKey(p.avatar))}</div>
@@ -492,6 +742,7 @@ SC.home=()=>{
         ${mono?`<br><span class="mono">${mono} — เด็กไม่เห็นตัวเลขชุดนี้</span>`:''}</small></div>
       <div class="adaptlist"><b>สิ่งที่ระบบปรับได้</b>
         <ul class="skilllist">${lv.adapts.map(a=>`<li>${ico(DIMS[a].ico)} ${DIMS[a].label}</li>`).join('')}</ul></div>
+      ${bestBars(lv.n)}
       <div class="others"><b>โหมดอื่นของด่านนี้</b>
         ${others.map(k=>`<div class="mini"><span class="em">${ico(MODE_META[k].em)}</span>
           <div><b>${lv.modes[k].name}</b><span>${MODE_META[k].label}</span></div></div>`).join('')}</div>
@@ -658,6 +909,10 @@ function mountGame(){
         eyeL=$('eyeL'),eyeR=$('eyeR'),mouth=$('mouth');
   FX.attach($('fx'));
   S.lastGame='bubble';
+  /* ด่านอื่นเคลียร์ G.results ตอน mount กันหมด ด่านนี้เคยตกไป ผลรอบก่อนจึงค้าง
+     ทำให้หน้าสรุปนับรวมรอบเก่า และ goReward() เห็นความสำเร็จเก่าเป็นของรอบนี้ */
+  G.results=[];
+  S.runFrom=H.trials.length;
   const TOP=46,BOT=350,SPAN=BOT-TOP;          // เกจในพิกัด SVG
   const yOf=f=>BOT-clamp(f,0,100)/100*SPAN;
 
@@ -1524,6 +1779,7 @@ function mountRocket(){
                    laneAlt:H.engine.diff.target_force,
                    pointer:{y:0,on:false},kb:{a:0,on:false}});
   G.results=[];
+  S.runFrom=H.trials.length;                      // ด่านนี้เขียนลง H.trials เหมือนด่าน 2
 
   const rng=mulberry32(hash((S.p?S.p.code:'X')+'rocket'));
   starsG.innerHTML=Array.from({length:34},()=>{
@@ -3008,6 +3264,541 @@ function mountQuest(){
   $('qsQuit').onclick=()=>endRound();
 }
 
+/* ==========================================================================
+   สถิติต่อด่าน — 5 แท่งต่อด่าน เทียบครั้งนี้กับสถิติเดิม
+   --------------------------------------------------------------------------
+   ทุกค่าคำนวณจากสิ่งที่ด่านนั้น "บันทึกไว้จริง" ไม่ใช่ชุดเดียวกันทุกด่าน
+   มีแค่ด่าน 2 กับ 3 ที่เป็นงานคุมแรง จึงใช้ GSI/GAS/GES ตามสูตรใน METHODS ได้
+   ด่านอื่นเป็นงานเอื้อม จังหวะ ท่ามือ หรือหมุนข้อมือ ตัวชี้วัดแรงไม่มีความหมาย
+   ถ้าใส่ค่าแรงลงไปก็จะเป็นเลขที่แต่งขึ้น และจะไหลไปปนกับหน้านักกายภาพด้วย
+   GDI ไม่อยู่ในชุดนี้เลย เพราะต้องอ่านจากเซนเซอร์แรงหลายจุดในลูกบอล
+   โหมดกล้องไม่มีเซนเซอร์ ค่าที่เกมคำนวณอยู่ตอนนี้จึงเป็นค่าประมาณ + สุ่ม
+   ถ้าเอามาโชว์เป็น "ความก้าวหน้า" แท่งจะขยับเองทั้งที่เด็กทำเหมือนเดิม
+   ========================================================================== */
+const STAT_MAX=5;                                 // จำนวนแท่งต่อด่าน
+
+/* ตัวช่วยแปลงข้อมูล trial ให้เป็นคะแนน 0–100 — คืน null เมื่อข้อมูลไม่พอ
+   คืน null สำคัญมาก เพราะ mean([]) = 0 และ Math.max(...[]) = -Infinity
+   ถ้าไม่ดักไว้ รอบที่ไม่มีข้อมูลจะกลายเป็น "ได้ 0 คะแนน" ซึ่งไม่จริง */
+const stPc =(tr,f)=>tr.length?Math.round(100*mean(tr.map(f))):null;
+const stAvg=(tr,f)=>{const v=tr.map(f).filter(x=>x!=null&&isFinite(x));
+  return v.length?mean(v):null};
+/* เร็ว–ช้า : lo คือเร็วจนได้เต็ม hi คือช้าจนได้ศูนย์ (ตัวเลขปรับได้) */
+const stSpd=(ms,lo,hi)=>ms==null?null:Math.round(clamp(100*(hi-ms)/(hi-lo),0,100));
+const stRt =ms=>stSpd(ms,200,2000);
+/* ความสม่ำเสมอ = 1 − CV ของเวลาที่ใช้แต่ละครั้ง ต้องมีอย่างน้อย 2 ครั้ง */
+const stCv =v=>{v=v.filter(x=>x!=null&&isFinite(x));
+  if(v.length<2)return null;const m=mean(v);if(m<=0)return null;
+  const sd=Math.sqrt(mean(v.map(x=>(x-m)**2)));
+  return Math.round(clamp(100*(1-sd/m),0,100))};
+/* ความยากที่ไปถึง : เทียบกับช่วง min–max ของมิตินั้นใน DIMS
+   เป็น "ความก้าวหน้า" จริง เพราะ engine เลื่อนขึ้นให้เฉพาะเมื่อเด็กทำได้ */
+const stDim=(tr,f,d)=>{const v=tr.map(f).filter(x=>x!=null&&isFinite(x));
+  if(!v.length)return null;const D=DIMS[d];
+  return Math.round(clamp(100*(Math.max(...v)-D.min)/(D.max-D.min),0,100))};
+const stKind=(tr,k)=>{const s=tr.filter(t=>t.kind===k);
+  return s.length?Math.round(100*s.filter(t=>t.ok).length/s.length):null};
+
+/* key = ค่าของ S.lastGame ที่แต่ละ mount ตั้งไว้ (ด่าน 2 ใช้ชื่อ 'bubble') */
+const STAGE_STATS={
+  /* ด่าน 1 — งานเอื้อม/หยิบ/ปล่อย : SH.trials เก็บ ok, rt, grabs, assisted, pathEff */
+  shape:[
+    {k:'ACC',  label:'วางถูกช่อง',      get:tr=>stPc(tr,t=>t.ok?1:0)},
+    {k:'RT',   label:'เริ่มเอื้อมได้ไว', get:tr=>stRt(stAvg(tr,t=>t.rt||null))},
+    {k:'PATH', label:'ลากได้ตรงทาง',    get:tr=>{const v=stAvg(tr,t=>t.pathEff);
+      return v==null?null:Math.round(v)}},
+    /* หยิบติดครั้งเดียว = จำนวนครั้งที่ลอง ÷ จำนวนครั้งที่คว้า ยิ่งใกล้ 1 ยิ่งดี */
+    {k:'GRAB', label:'คว้าติดครั้งเดียว',get:tr=>{
+      const g=tr.reduce((a,t)=>a+(t.grabs||0),0);
+      return g?Math.round(clamp(100*tr.length/g,0,100)):null}},
+    /* ปล่อยเองได้ ไม่ต้องพึ่ง dwell-to-drop — นับเฉพาะครั้งที่วางสำเร็จ */
+    {k:'INDEP',label:'ปล่อยด้วยตัวเอง',  get:tr=>{const o=tr.filter(t=>t.ok);
+      return o.length?Math.round(100*o.filter(t=>!t.assisted).length/o.length):null}},
+  ],
+  /* ด่าน 2 และ 3 — งานคุมแรงจริง ใช้ตัวชี้วัดแรงตามเอกสารได้เต็มชุด */
+  bubble:[
+    {k:'GAS',  label:'ความแม่นของแรง',  sub:'GAS',get:tr=>{const v=stAvg(tr,t=>t.GAS);return v==null?null:Math.round(v)}},
+    {k:'GSI',  label:'ความนิ่งของแรง',  sub:'GSI',get:tr=>{const v=stAvg(tr,t=>t.GSI);return v==null?null:Math.round(v)}},
+    {k:'GES',  label:'ความทนของการกำ',  sub:'GES',get:tr=>{const v=stAvg(tr,t=>t.GES);return v==null?null:Math.round(v)}},
+    {k:'RT',   label:'เริ่มบีบได้ไว',    sub:'RT', get:tr=>stRt(stAvg(tr,t=>t.RT||null))},
+    {k:'ACC',  label:'ช่วยสัตว์สำเร็จ',  get:tr=>stPc(tr,t=>t.ok?1:0)},
+  ],
+  /* ด่าน 4 — งานจังหวะสองบีต : ต้องอ้าปากทัน แล้วปิดปากทัน */
+  monster:[
+    {k:'ACC',  label:'ครบทั้งสองจังหวะ',get:tr=>stPc(tr,t=>t.ok?1:0)},
+    {k:'CATCH',label:'อ้าปากรับทัน',     get:tr=>stPc(tr,t=>t.caught?1:0)},
+    {k:'CHEW', label:'ปิดปากเคี้ยวทัน',  get:tr=>stPc(tr,t=>t.chewed?1:0)},
+    {k:'RTO',  label:'อ้าปากได้ไว',      get:tr=>stRt(stAvg(tr,t=>t.rtOpen||null))},
+    {k:'RTC',  label:'ปิดปากได้ไว',      get:tr=>stRt(stAvg(tr,t=>t.rtClose||null))},
+  ],
+  /* ด่าน 5 — งานท่ามือ : GD.trials เก็บ ok, ms, hold, zones */
+  garden:[
+    {k:'ACC',  label:'ทำท่ามือถูก',      get:tr=>stPc(tr,t=>t.ok?1:0)},
+    {k:'SPEED',label:'หาท่าได้ไว',       get:tr=>stSpd(stAvg(tr,t=>t.ms),800,6000)},
+    {k:'STEADY',label:'ทำได้สม่ำเสมอ',   get:tr=>stCv(tr.map(t=>t.ms))},
+    {k:'HOLD', label:'ค้างท่าได้นาน',    get:tr=>stDim(tr,t=>t.hold,'hold_time')},
+    {k:'ZONES',label:'ใช้มือหลายส่วน',   get:tr=>stDim(tr,t=>t.zones,'contact_zones')},
+  ],
+  /* ด่าน 6 — งานเอื้อมไกล : ตัวชี้วัดหลักคือระยะและการข้ามแนวกลางลำตัว */
+  trek:[
+    {k:'ACC',  label:'เก็บเข้าหีบได้',   get:tr=>stPc(tr,t=>t.ok?1:0)},
+    /* เวที 640 px กว้าง ระยะเอื้อมที่วัดได้จริงต่ำสุด 378 px จึงหาร 600 */
+    {k:'REACH',label:'ระยะเอื้อม',       get:tr=>{const v=stAvg(tr,t=>t.reach);
+      return v==null?null:Math.round(clamp(100*v/600,0,100))}},
+    {k:'CROSS',label:'ข้ามแนวกลางตัว',   get:tr=>stPc(tr,t=>t.crossed?1:0)},
+    {k:'RT',   label:'เริ่มเอื้อมได้ไว',  get:tr=>stRt(stAvg(tr,t=>t.rt||null))},
+    {k:'PATH', label:'ลากได้ตรงทาง',     get:tr=>{const v=stAvg(tr,t=>t.pathEff);
+      return v==null?null:Math.round(v)}},
+  ],
+  /* ด่าน 7 — ลำดับการหมุนข้อมือ : CK.trials เก็บ ok, ms, hold, acts */
+  cook:[
+    {k:'ACC',  label:'ทำตามขั้นตอนได้',  get:tr=>stPc(tr,t=>t.ok?1:0)},
+    {k:'SPEED',label:'ทำได้ไว',          get:tr=>stSpd(stAvg(tr,t=>t.ms),800,8000)},
+    {k:'STEADY',label:'ทำได้สม่ำเสมอ',   get:tr=>stCv(tr.map(t=>t.ms))},
+    {k:'HOLD', label:'ทำได้ครบจังหวะ',   get:tr=>stDim(tr,t=>t.hold,'hold_time')},
+    {k:'ACTS', label:'ท่าที่ทำได้',       get:tr=>stDim(tr,t=>t.acts,'directions')},
+  ],
+  /* ด่าน 8 — บทสรุป ไม่มีกลไกใหม่ จึงวัดเป็น "ผ่านสถานีไหนได้บ้าง"
+     ตรงกับที่ด่านนี้เอาแกนของด่าน 1–7 มาเรียงเป็นสถานีสั้น ๆ พอดี
+     สถานีที่ไม่ออกในรอบนั้นจะได้ null แล้วแสดงว่ายังไม่มีข้อมูล */
+  quest:QS_KINDS.map((k,i)=>({k:'S_'+k.toUpperCase(),
+    label:['สถานีเอื้อม','สถานีค้างแรง','สถานีจังหวะ','สถานีท่ามือ','สถานีหมุนมือ'][i],
+    get:tr=>stKind(tr,k)})),
+};
+STAGE_STATS.rocket=STAGE_STATS.bubble;            // ด่าน 3 ใช้ schema เดียวกับด่าน 2
+
+/* trial ของ "รอบนี้เท่านั้น"
+   ด่านอื่นเคลียร์ trials ของตัวเองตอน mount อยู่แล้ว จึงอ่านตรง ๆ ได้
+   ด่าน 2/3 เขียนลง H.trials ซึ่งมีประวัติจำลองปนอยู่และสะสมข้ามรอบ
+   จึงต้องตัดจากหลักที่บันทึกไว้ตอน mount (S.runFrom) และกรองเอาแต่ live */
+function roundTrials(){
+  switch(S.lastGame){
+    case 'bubble':
+    case 'rocket':  return H.trials.slice(S.runFrom||0).filter(t=>t.live);
+    case 'shape':   return SH.trials;
+    case 'monster': return TM.trials;
+    case 'garden':  return GD.trials;
+    case 'trek':    return TK.trials;
+    case 'cook':    return CK.trials;
+    case 'quest':   return QS.trials;
+    default:        return [];
+  }
+}
+
+/* ปิดรอบ : คำนวณคะแนนของรอบนี้ เทียบกับที่เก็บไว้ แล้วอัปเดตสถิติ
+   เก็บแค่ last/best/runs ต่อหนึ่งตัวชี้วัด ไม่เก็บประวัติทุกรอบ
+   เพราะหน้านี้ต้องรู้แค่ "ครั้งนี้ เทียบครั้งก่อน และเทียบสถิติที่ดีที่สุด"
+   อ่านค่าเดิมก่อนเขียนทับเสมอ ไม่งั้น delta จะเทียบกับตัวเองและได้ 0 ตลอด */
+function commitStats(){
+  S.runStats=null;
+  const defs=STAGE_STATS[S.lastGame];
+  if(!defs||!S.p)return;
+  const tr=roundTrials();
+  if(!tr.length)return;
+  if(!S.p.stats)S.p.stats={};
+  const key=String(S.sel);
+  const rec=S.p.stats[key]||(S.p.stats[key]={runs:0,m:{}});
+  const rows=defs.map(d=>{
+    const v=d.get(tr),old=rec.m[d.k]||null;
+    const row={k:d.k,label:d.label,sub:d.sub||'',v,
+      prev:old?old.last:null,best:old?old.best:null};
+    /* "สถิติใหม่" ต้องมีของเดิมให้ทุบก่อน ไม่งั้นรอบแรกจะขึ้นทั้ง 5 แท่งซึ่งไม่มีความหมาย */
+    row.record=v!=null&&row.best!=null&&v>row.best;
+    if(v!=null)rec.m[d.k]={last:v,best:row.best==null?v:Math.max(row.best,v)};
+    return row;
+  });
+  rec.runs++;
+  S.runStats={level:S.sel,runs:rec.runs,rows};
+  saveStore();
+}
+
+/* กราฟแท่งแนวนอน : ชื่อตัวชี้วัดอยู่คอลัมน์ซ้าย แท่งงอกจากเส้นศูนย์เส้นเดียวกัน
+   มีเส้นกริดที่ 0/25/50/75/100 ต่อเนื่องทุกแถว และมีแกนกำกับใต้กราฟ
+   เส้นกริดกับแกนคือสิ่งที่ทำให้อ่านเป็น "กราฟ" ไม่ใช่แถบโหลด 5 อัน
+   ปลายแท่งมนแค่ด้านขวา (4px) ด้านซ้ายเป็นมุมฉากติดเส้นศูนย์ ตามหลักกราฟแท่ง
+   ขีดสีม่วงคือสถิติที่ดีที่สุด "ก่อนรอบนี้" แท่งวิ่งเลยขีดได้ เพื่อให้เห็นตอนทำสถิติใหม่
+   มีสองสิ่งที่เข้ารหัสด้วยสี (แท่ง = รอบนี้ / ขีด = สถิติเดิม) จึงต้องมี legend กำกับ
+   สีทั้งชุดผ่านการตรวจ contrast และการแยกสีสำหรับตาบอดสีแล้ว
+   ใช้ step ที่เข้มของโทเคนเดิม (grass-deep / grape-deep / sun-deep)
+   ค่าอ่อนอย่าง --sun (#FFB43C) ตกเกณฑ์ contrast บนพื้นขาว จึงห้ามใช้เป็นสีแท่ง */
+function statBars(rows,compact){
+  const axis=`<div class="sbrow sbaxis"><span></span>
+    <span class="sbticks"><i>0</i><i>50</i><i>100</i></span><span></span></div>`;
+  const legend=compact?'':`<div class="sblegend">
+    <span><i class="k bar"></i>รอบนี้</span>
+    <span><i class="k tick"></i>สถิติเดิม</span></div>`;
+  const body=rows.map(r=>{
+    const d=r.prev==null?null:r.v-r.prev;
+    const dcls=d==null?'first':(d>0?'up':(d<0?'down':'same'));
+    /* ใช้เครื่องหมาย + / − นำหน้าเสมอ ทิศทางจึงไม่ได้อยู่ที่สีอย่างเดียว */
+    const dtxt=d==null?'ครั้งแรก':(d===0?'เท่าเดิม':`${d>0?'+':'−'}${Math.abs(d)}`);
+    const name=`${r.label}${r.sub?` <i>${r.sub}</i>`:''}`;
+    if(r.v==null)return `<div class="sbrow nodata">
+      <span class="sblab"><b>${name}</b><small>ยังไม่มีข้อมูล</small></span>
+      <span class="sbplot"></span>
+      <span class="sbval"><b>–</b></span></div>`;
+    const note=r.record?`${ico('flag')} สถิติใหม่`:(r.best!=null?`ดีที่สุด ${r.best}`:'');
+    return `<div class="sbrow${r.record?' rec-new':''}"
+      title="${r.label}${r.sub?' ('+r.sub+')':''} — รอบนี้ ${r.v} จาก 100${
+        r.best!=null?` · ดีที่สุดก่อนรอบนี้ ${r.best}`:''}${
+        r.prev!=null?` · ครั้งก่อน ${r.prev}`:''}">
+      <span class="sblab"><b>${name}</b>${compact?'':`<small>${note}</small>`}</span>
+      <span class="sbplot"><i class="sbbar" style="width:${r.v}%"></i>${
+        r.best!=null?`<u class="sbtick" style="left:${r.best}%"></u>`:''}</span>
+      <span class="sbval"><b>${r.v}</b>${compact?'':`<s class="${dcls}">${dtxt}</s>`}</span>
+    </div>`}).join('');
+  return `<figure class="sbchart${compact?' compact':''}">${legend}
+    <div class="sbplotarea">${body}${axis}</div></figure>`;
+}
+
+/* ฉบับย่อบนการ์ดด่านในแผนที่ : ไม่มี "รอบนี้" จึงแสดงสถิติที่ดีที่สุด */
+function bestBars(level){
+  const defs=STAGE_STATS[gameKeyOf(level)];
+  const rec=S.p&&S.p.stats&&S.p.stats[String(level)];
+  if(!defs||!rec)return '';
+  const rows=defs.map(d=>{const m=rec.m[d.k]||null;
+    return{k:d.k,label:d.label,sub:d.sub||'',v:m?m.best:null,prev:null,best:null}});
+  if(!rows.some(r=>r.v!=null))return '';
+  return `<div class="statcard"><b>สถิติที่ดีที่สุดของด่านนี้</b>
+    <small>เล่นไปแล้ว ${rec.runs} รอบ · แท่งคือคะแนนสูงสุดที่เคยทำได้</small>
+    ${statBars(rows,true)}</div>`;
+}
+
+/* ด่าน -> key ของ STAGE_STATS โดยดูจากโหมดที่เลือกไว้
+   playable กับ screen อยู่ในข้อมูลของด่าน จึงไม่ต้องมีตารางซ้ำอีกที่ */
+function gameKeyOf(level){
+  const lv=LEVELS[level-1],m=lv&&S.p&&lv.modes[S.p.mode];
+  if(!m||!m.playable)return null;
+  const scr=m.screen||'game';
+  return scr==='game'?'bubble':scr;
+}
+
+/* ==========================================================================
+   เหรียญ · ตู้กาชา · ของเล่นสะสมที่เดินอยู่ในพื้นหลัง
+   --------------------------------------------------------------------------
+   ตัวละครในตู้เป็นของที่ออกแบบขึ้นใหม่ทั้งหมด ไม่ใช่มีมที่มีชื่อเจ้าของอยู่แล้ว
+   เพราะเว็บนี้ถูกดีพลอยจริงเป็นสาธารณะและเป็นผลิตภัณฑ์ด้านสุขภาพ
+   การเอาตัวละครของคนอื่นมาใส่จึงเป็นความเสี่ยงที่ไม่ควรฝังไว้ในโค้ด
+   แต่คงอารมณ์เดิมไว้ครบ : สัตว์ผสมสิ่งของ ชื่ออ่านเล่นลิ้น สุ่มได้จากตู้
+   ถ้าจะเปลี่ยนชื่อหรือเพิ่มตัว แก้ที่ตาราง TOYS ที่เดียว
+   ========================================================================== */
+const ROLL_COST=60;
+const TOY_SHOWCASE=10;                            // จำนวนตัวที่เดินในฉากพร้อมกันได้มากที่สุด
+const SPIN_MS=1500;                               // เวลาหมุนก่อนเฉลย
+/* น้ำหนักการสุ่มและค่าชดเชยเมื่อได้ตัวซ้ำ — ซ้ำแล้วต้องได้อะไรกลับ
+   ไม่งั้นเด็กที่หมุนแล้วได้ตัวเดิมจะรู้สึกว่าเสียเหรียญเปล่า */
+const RARITY={1:{th:'ธรรมดา',    w:40,  back:10, col:'#7BD256'},
+              2:{th:'หายาก',     w:26,  back:22, col:'#8FD8FF'},
+              3:{th:'หายากมาก',  w:16,  back:50, col:'#A99BF5'},
+              4:{th:'ตำนาน',     w:10,  back:95, col:'#FFC94F'},
+              5:{th:'ลับเฉพาะ',  w:6,   back:180,col:'#FF9FD0'},
+              6:{th:'OG',        w:2,   back:320,col:'#E8543F'}};
+/* kind = รูปทรงลำตัว · c = สีหลัก/สีเงา · a = สีของประดับ */
+const TOYS=[
+ {id:'kak',n:'Cactusso Miaowino',th:'แคคตัสเหมียว',r:1,kind:'cactus',c:['#5DBE3E','#3F9A26'],a:'#FF9FD0'},
+ {id:'toa',n:'Toastino Bearoni',th:'ขนมปังหมี',    r:1,kind:'toast', c:['#F0C070','#D19A45'],a:'#8A5A2B'},
+ {id:'sok',n:'Sockolo Froggini', th:'ถุงเท้ากบ',   r:1,kind:'sock',  c:['#8FD8FF','#4FA3D9'],a:'#7BD256'},
+ {id:'don',n:'Donutto Wormello', th:'โดนัทหนอน',   r:1,kind:'donut', c:['#FF9FD0','#E8548F'],a:'#FFF1D6'},
+ {id:'tea',n:'Teapotto Turtelli',th:'กาน้ำเต่า',    r:2,kind:'teapot',c:['#0FA3A3','#0A7A7A'],a:'#FFD98A'},
+ {id:'lam',n:'Lampino Giraffoni',th:'โคมไฟยีราฟ',  r:2,kind:'lamp',  c:['#FFC94F','#C87A00'],a:'#6C5CE7'},
+ {id:'umb',n:'Umbrello Duckini', th:'ร่มเป็ด',      r:2,kind:'umbra', c:['#6C5CE7','#4F41C4'],a:'#FFB43C'},
+ {id:'ket',n:'Kettolo Bunnyssimo',th:'กาต้มกระต่าย',r:3,kind:'kettle',c:['#F4F9FC','#CFD9DF'],a:'#FF9FD0'},
+ {id:'mus',n:'Mushrino Owletto', th:'เห็ดนกฮูก',    r:3,kind:'shroom',c:['#D6206E','#A81555'],a:'#FFF1D6'},
+ {id:'ban',n:'Bananini Croccolo',th:'กล้วยจอมงับ',  r:4,kind:'banana',c:['#FFD24F','#D9A400'],a:'#5DBE3E'},
+ /* ---- เติมชุดพื้นฐานให้ตู้มีของหลากหลายขึ้น ---- */
+ {id:'clo',n:'Nuvolino Sheepini', th:'เมฆแกะ',      r:1,kind:'cloudy',c:['#F4F9FC','#CFD9DF'],a:'#8FD8FF'},
+ {id:'pen',n:'Pencilino Foxxo',   th:'ดินสอจิ้งจอก',r:1,kind:'pencil',c:['#FFB43C','#C87A00'],a:'#FF8A5B'},
+ {id:'mel',n:'Melonini Pandolo',  th:'แตงโมแพนด้า', r:2,kind:'melon', c:['#5DBE3E','#3F9A26'],a:'#FF6B8A'},
+ {id:'roc',n:'Rockettino Space',  th:'จรวดน้อย',    r:2,kind:'rocketp',c:['#F4F9FC','#8FD8FF'],a:'#E8543F'},
+ {id:'cro',n:'Crownini Regalino', th:'มงกุฎจอมกวน', r:3,kind:'crown', c:['#FFD24F','#C87A00'],a:'#6C5CE7'},
+ {id:'sta',n:'Stellina Brillino', th:'ดาวกะพริบ',   r:4,kind:'starry',c:['#FFC94F','#FF9F1C'],a:'#fff'},
+ /* ---- ชุด OG brainrot : อยู่ในระดับหายากที่สุดสองระดับ ----
+    วาดใหม่เป็นเวกเตอร์แบนตามสไตล์ของเว็บนี้ ไม่ได้ลอกภาพเรนเดอร์ต้นฉบับ
+    ตัวไหนมีหัวเป็นเอกลักษณ์จะตั้ง nf:1 เพื่อไม่ให้วาดหน้ากลมมาตรฐานทับ */
+ {id:'tri',n:'Trippi Troppi',      th:'กุ้งแมว',      r:5,kind:'shrimpcat',c:['#FF8A5B','#E8543F'],a:'#FFD98A',nf:1},
+ {id:'bon',n:'Boneca Ambalabu',    th:'กบล้อยาง',    r:5,kind:'frogtire', c:['#5DBE3E','#3F9A26'],a:'#33404A',nf:1},
+ {id:'chi',n:'Chimpanzini Bananini',th:'ลิงกล้วย',   r:5,kind:'monkeyban',c:['#FFD24F','#D9A400'],a:'#8A5A2B',nf:1},
+ {id:'cap',n:'Ballerina Cappuccina',th:'บัลเลต์กาแฟ',r:5,kind:'cupdancer',c:['#F4F9FC','#CFD9DF'],a:'#8A5A2B',nf:1},
+ {id:'tun',n:'Tung Tung Tung Sahur',th:'ท่อนไม้ตีกลอง',r:6,kind:'logbat',c:['#C89B63','#8A5A2B'],a:'#5E3A17',nf:1},
+ {id:'tra',n:'Tralalero Tralala',  th:'ฉลามรองเท้า', r:6,kind:'sharksnk',c:['#4FA3D9','#2F7CB0'],a:'#fff',nf:1},
+ {id:'bom',n:'Bombardiro Crocodilo',th:'จระเข้บินได้',r:6,kind:'crocplane',c:['#5DBE3E','#3F9A26'],a:'#8A5A2B',nf:1},
+];
+const TOY_BY_ID=Object.fromEntries(TOYS.map(t=>[t.id,t]));
+
+/* ลำตัวของแต่ละตัว : วาดในกรอบ 100x100 โดยให้เท้าอยู่ที่ y=92 เสมอ
+   ทุกตัวจึงยืนบนพื้นเส้นเดียวกันเวลาเอาไปเดินในพื้นหลัง */
+const toyBody=(k,c,a)=>({
+  cactus:`<rect x="-16" y="-30" width="32" height="62" rx="15" fill="${c[0]}"/>
+    <rect x="-16" y="-30" width="12" height="62" rx="6" fill="${c[1]}" opacity=".45"/>
+    <rect x="-30" y="-14" width="14" height="9" rx="4.5" fill="${c[0]}"/>
+    <rect x="16" y="-22" width="14" height="9" rx="4.5" fill="${c[0]}"/>
+    <circle cx="0" cy="-34" r="5" fill="${a}"/>`,
+  toast:`<path d="M-19 -28q0 -10 8 -10t8 4h6q8 -4 8 6v56q0 4 -4 4h-22q-4 0 -4 -4z" fill="${c[0]}"/>
+    <path d="M-13 -20h20v42h-20z" fill="${c[1]}" opacity=".4"/>
+    <ellipse cx="4" cy="-6" rx="8" ry="6" fill="${a}" opacity=".55"/>`,
+  sock:`<path d="M-12 -30h20q4 0 4 5v34l10 10q4 5 -2 9l-10 6q-6 3 -9 -3l-15 -22q-2 -3 -2 -8z" fill="${c[0]}"/>
+    <rect x="-12" y="-30" width="24" height="11" rx="5" fill="${c[1]}"/>
+    <rect x="-12" y="-8" width="24" height="6" fill="${a}" opacity=".6"/>`,
+  donut:`<circle cx="0" cy="0" r="30" fill="${c[0]}"/><circle cx="0" cy="0" r="11" fill="#EAF9FF"/>
+    <path d="M-30 -3q10 -9 20 -2t20 -3v8q-10 8 -20 2t-20 3z" fill="${c[1]}"/>
+    ${[[-18,-16],[14,-18],[20,10],[-14,16],[2,-24]].map(([x,y])=>
+      `<rect x="${x}" y="${y}" width="8" height="3.4" rx="1.7" fill="${a}" transform="rotate(${x*3} ${x} ${y})"/>`).join('')}`,
+  teapot:`<ellipse cx="0" cy="4" rx="28" ry="24" fill="${c[0]}"/>
+    <path d="M24 -2q14 2 12 14t-14 8" fill="none" stroke="${c[1]}" stroke-width="6" stroke-linecap="round"/>
+    <path d="M-26 -4l-14 -8q-4 -2 -2 4l8 12z" fill="${c[1]}"/>
+    <rect x="-9" y="-30" width="18" height="9" rx="4.5" fill="${c[1]}"/>
+    <circle cx="0" cy="-32" r="5" fill="${a}"/>`,
+  lamp:`<path d="M-22 -26h44l-8 26h-28z" fill="${c[0]}"/>
+    <path d="M-22 -26h16l-4 26h-4z" fill="${c[1]}" opacity=".5"/>
+    <rect x="-4" y="0" width="8" height="26" rx="3" fill="${c[1]}"/>
+    <ellipse cx="0" cy="30" rx="18" ry="5" fill="${c[1]}"/>
+    <circle cx="0" cy="4" r="6" fill="${a}" opacity=".85"/>`,
+  umbra:`<path d="M-30 -6q4 -26 30 -26t30 26q-14 -6 -15 2 -1 -8 -15 -2 -14 -6 -15 2 -1 -8 -15 -2z" fill="${c[0]}"/>
+    <path d="M0 -32v56q0 8 -9 8t-9 -6" fill="none" stroke="${c[1]}" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="0" cy="-34" r="4" fill="${a}"/>`,
+  kettle:`<path d="M-24 -6q0 -20 24 -20t24 20v14q0 12 -24 12t-24 -12z" fill="${c[0]}"/>
+    <path d="M-24 -2l-13 -12q-4 -4 1 -6l14 8z" fill="${c[1]}"/>
+    <path d="M-12 -26q12 -14 24 0" fill="none" stroke="${c[1]}" stroke-width="5" stroke-linecap="round"/>
+    <ellipse cx="0" cy="-24" rx="7" ry="3.4" fill="${a}"/>`,
+  shroom:`<path d="M-30 -2q0 -28 30 -28t30 28z" fill="${c[0]}"/>
+    <rect x="-11" y="-4" width="22" height="34" rx="9" fill="${a}"/>
+    ${[[-18,-12,5],[6,-16,6],[16,-6,4],[-6,-22,4.4]].map(([x,y,r])=>
+      `<circle cx="${x}" cy="${y}" r="${r}" fill="${a}" opacity=".9"/>`).join('')}
+    <path d="M-30 -2q0 -12 8 -20 -2 12 2 20z" fill="${c[1]}" opacity=".5"/>`,
+  banana:`<path d="M-24 18q-10 -34 10 -46t28 4q-4 22 -14 34t-24 8z" fill="${c[0]}"/>
+    <path d="M-24 18q-6 -22 4 -34 -2 18 6 30z" fill="${c[1]}" opacity=".55"/>
+    <path d="M12 -26l6 -8q3 -4 5 1l-4 9z" fill="${a}"/>
+    <path d="M-18 12q10 6 22 -2 -4 12 -14 12t-8 -10z" fill="#fff" opacity=".85"/>`,
+  cloudy:`<ellipse cx="-15" cy="4" rx="15" ry="12" fill="${c[0]}"/>
+    <ellipse cx="6" cy="-6" rx="20" ry="17" fill="${c[0]}"/>
+    <ellipse cx="21" cy="4" rx="14" ry="11" fill="${c[0]}"/>
+    <rect x="-28" y="0" width="52" height="12" rx="6" fill="${c[0]}"/>
+    <ellipse cx="6" cy="8" rx="24" ry="6" fill="${c[1]}" opacity=".5"/>
+    <path d="M-8 -22q4 -7 10 -3" stroke="${a}" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+  pencil:`<path d="M-11 -34h22v50h-22z" fill="${c[0]}"/>
+    <path d="M-11 -34h8v50h-8z" fill="${c[1]}" opacity=".5"/>
+    <path d="M-11 16h22l-11 16z" fill="${a}"/>
+    <path d="M-4.5 26h9l-4.5 6z" fill="#33404A"/>
+    <rect x="-12" y="-40" width="24" height="8" rx="3" fill="#FF9FD0"/>`,
+  melon:`<path d="M-28 -4a28 28 0 0 1 56 0v6a28 28 0 0 1 -56 0z" fill="${c[0]}"/>
+    <path d="M-24 -2a24 24 0 0 1 48 0v4a24 24 0 0 1 -48 0z" fill="${a}"/>
+    ${[-14,-4,6,16].map(x=>`<ellipse cx="${x}" cy="6" rx="2.4" ry="3.6" fill="#33404A"/>`).join('')}
+    <path d="M-28 -4a28 28 0 0 1 56 0" fill="none" stroke="${c[1]}" stroke-width="5"/>`,
+  rocketp:`<path d="M0 -38q13 12 13 30v14h-26v-14q0 -18 13 -30z" fill="${c[0]}"/>
+    <path d="M0 -38q-13 12 -13 30v14h9v-44z" fill="${c[1]}" opacity=".55"/>
+    <circle cx="0" cy="-12" r="7" fill="${c[1]}"/>
+    <path d="M-13 0l-11 12h11z" fill="${a}"/><path d="M13 0l11 12h-11z" fill="${a}"/>
+    <path d="M-7 6h14l-7 14z" fill="${a}" opacity=".85"/>`,
+  crown:`<path d="M-26 10l-4 -36 14 12 16 -18 16 18 14 -12 -4 36z" fill="${c[0]}"/>
+    <path d="M-26 10l-4 -36 14 12 6 -7v31z" fill="${c[1]}" opacity=".45"/>
+    <rect x="-26" y="8" width="52" height="12" rx="4" fill="${c[1]}"/>
+    <circle cx="-16" cy="-2" r="3.6" fill="${a}"/><circle cx="16" cy="-2" r="3.6" fill="${a}"/>
+    <circle cx="0" cy="-6" r="4.4" fill="${a}"/>`,
+  starry:`<path d="M0 -36 8.6 -12 34 -12 13.6 3 21.4 27 0 12 -21.4 27 -13.6 3 -34 -12 -8.6 -12z" fill="${c[0]}"/>
+    <path d="M0 -36 8.6 -12 34 -12 13.6 3 0 -6z" fill="${c[1]}" opacity=".4"/>
+    <circle cx="-14" cy="14" r="2.6" fill="${a}" opacity=".9"/>
+    <circle cx="16" cy="12" r="2" fill="${a}" opacity=".8"/>`,
+  /* ---- ชุด OG : มีหัวของตัวเอง (nf:1) จึงวาดตาและปากไว้ในนี้เลย ---- */
+  shrimpcat:`<path d="M-26 8q-6 -22 8 -30t28 2q8 8 6 20t-14 16z" fill="${c[0]}"/>
+    <path d="M-26 8q-4 -16 4 -24 -2 14 4 24z" fill="${c[1]}" opacity=".5"/>
+    ${[0,1,2].map(i=>`<path d="M${-14+i*11} -20q5 -6 10 0" stroke="${c[1]}" stroke-width="2.6" fill="none"/>`).join('')}
+    <path d="M-20 -22l-8 -14q-2 -5 3 -3l9 12z" fill="${c[1]}"/>
+    <path d="M-6 -22l-3 -15q-1 -5 4 -2l3 13z" fill="${c[1]}"/>
+    <circle cx="-8" cy="-8" r="3.2" fill="#22323C"/><circle cx="8" cy="-9" r="3.2" fill="#22323C"/>
+    <path d="M-4 0q4 4 8 0" stroke="#22323C" stroke-width="2.2" fill="none" stroke-linecap="round"/>
+    <path d="M20 6q10 4 12 14" stroke="${a}" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+  frogtire:`<circle cx="0" cy="4" r="27" fill="${a}"/><circle cx="0" cy="4" r="15" fill="#4A5A66"/>
+    ${Array.from({length:8},(_,i)=>{const ang=i*45*Math.PI/180;
+      return `<rect x="-2.4" y="-27" width="4.8" height="8" rx="2" fill="#5A6B78"
+        transform="rotate(${i*45} 0 4)"/>`}).join('')}
+    <ellipse cx="0" cy="-20" rx="20" ry="15" fill="${c[0]}"/>
+    <circle cx="-11" cy="-30" r="8" fill="${c[0]}"/><circle cx="11" cy="-30" r="8" fill="${c[0]}"/>
+    <circle cx="-11" cy="-31" r="5" fill="#fff"/><circle cx="11" cy="-31" r="5" fill="#fff"/>
+    <circle cx="-10" cy="-30" r="2.6" fill="#22323C"/><circle cx="12" cy="-30" r="2.6" fill="#22323C"/>
+    <path d="M-9 -16q9 6 18 0" stroke="#22323C" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+  monkeyban:`<path d="M-20 16q-8 -28 8 -40t26 2q6 10 0 24t-18 16z" fill="${c[0]}"/>
+    <path d="M-20 16q-5 -18 3 -28 -2 15 5 26z" fill="${c[1]}" opacity=".5"/>
+    <path d="M10 -26l5 -8q3 -4 5 1l-4 8z" fill="#5DBE3E"/>
+    <ellipse cx="-2" cy="-8" rx="13" ry="12" fill="${a}"/>
+    <ellipse cx="-2" cy="-4" rx="9" ry="7" fill="#D9B08C"/>
+    <circle cx="-14" cy="-12" r="5" fill="${a}"/><circle cx="10" cy="-12" r="5" fill="${a}"/>
+    <circle cx="-6" cy="-11" r="2.6" fill="#22323C"/><circle cx="2" cy="-11" r="2.6" fill="#22323C"/>
+    <path d="M-5 -2q3 3 6 0" stroke="#5E3A17" stroke-width="2" fill="none" stroke-linecap="round"/>`,
+  cupdancer:`<path d="M-16 -2h32l-4 22a6 6 0 0 1 -6 5h-12a6 6 0 0 1 -6 -5z" fill="${c[0]}"/>
+    <path d="M-16 -2h12l-3 27h-3a6 6 0 0 1 -6 -5z" fill="${c[1]}" opacity=".5"/>
+    <ellipse cx="0" cy="-2" rx="16" ry="5" fill="${a}"/>
+    <path d="M16 4q10 1 9 9t-10 6" stroke="${c[1]}" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <circle cx="0" cy="-20" r="12" fill="${c[0]}"/>
+    <path d="M-12 -22q4 -14 12 -14t12 14q-6 -5 -12 -5t-12 5z" fill="${a}"/>
+    <circle cx="-4.5" cy="-20" r="2.4" fill="#22323C"/><circle cx="4.5" cy="-20" r="2.4" fill="#22323C"/>
+    <path d="M-3 -14q3 3 6 0" stroke="#22323C" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M-22 22q-8 6 -6 14h56q2 -8 -6 -14z" fill="#FF9FD0" opacity=".9"/>`,
+  logbat:`<rect x="-15" y="-34" width="30" height="58" rx="8" fill="${c[0]}"/>
+    <rect x="-15" y="-34" width="11" height="58" rx="6" fill="${c[1]}" opacity=".5"/>
+    <ellipse cx="0" cy="-34" rx="15" ry="6" fill="${a}"/>
+    ${[-18,-6,8].map(y=>`<path d="M-15 ${y}q15 4 30 0" stroke="${c[1]}" stroke-width="1.8" fill="none" opacity=".6"/>`).join('')}
+    <circle cx="-6" cy="-20" r="5.4" fill="#fff"/><circle cx="7" cy="-20" r="5.4" fill="#fff"/>
+    <circle cx="-5" cy="-19" r="2.8" fill="#22323C"/><circle cx="8" cy="-19" r="2.8" fill="#22323C"/>
+    <path d="M-7 -8q7 7 14 0" stroke="#22323C" stroke-width="2.6" fill="none" stroke-linecap="round"/>
+    <rect x="18" y="-26" width="7" height="40" rx="3.5" fill="${a}" transform="rotate(18 21 -6)"/>`,
+  sharksnk:`<path d="M-30 4q4 -26 26 -30t30 12q4 12 -6 20t-32 8z" fill="${c[0]}"/>
+    <path d="M-30 4q3 -18 18 -25 -8 12 -8 25z" fill="${c[1]}" opacity=".45"/>
+    <path d="M2 -30l6 -18q2 -6 6 0l4 16z" fill="${c[1]}"/>
+    <path d="M-30 4q16 8 34 2 -4 8 -18 9t-16 -11z" fill="${a}"/>
+    <path d="M-24 6q6 3 12 3 -2 4 -7 3z" fill="#fff"/>
+    ${[0,1,2,3].map(i=>`<path d="M${-20+i*10} 7l4 6 4 -6z" fill="#fff"/>`).join('')}
+    <circle cx="-4" cy="-14" r="5" fill="#fff"/><circle cx="-3" cy="-14" r="2.6" fill="#22323C"/>
+    <path d="M22 -6q8 2 8 10" stroke="${c[1]}" stroke-width="5" fill="none" stroke-linecap="round"/>`,
+  crocplane:`<path d="M-34 6q6 -16 26 -18t34 6q8 4 6 12t-16 10 -34 0 -16 -10z" fill="${c[0]}"/>
+    <path d="M-34 6q5 -12 20 -15 -8 8 -9 15z" fill="${c[1]}" opacity=".45"/>
+    <path d="M-30 -12l-14 -10q-4 -3 0 -6l16 8z" fill="${c[1]}"/>
+    <path d="M-8 -14q10 -3 20 0" stroke="${c[1]}" stroke-width="3" fill="none"/>
+    <path d="M-34 12q22 8 48 2 -4 8 -24 9t-24 -11z" fill="#CDEBB4"/>
+    ${[0,1,2,3,4].map(i=>`<path d="M${-26+i*11} 13l4 6 4 -6z" fill="#fff"/>`).join('')}
+    <circle cx="-16" cy="-16" r="6" fill="${c[0]}"/><circle cx="-15" cy="-17" r="3.4" fill="#fff"/>
+    <circle cx="-14" cy="-17" r="1.8" fill="#22323C"/>
+    <rect x="-6" y="-4" width="46" height="7" rx="3.5" fill="${a}" transform="rotate(-12 17 0)"/>
+    <rect x="-40" y="0" width="34" height="6" rx="3" fill="${a}" transform="rotate(-12 -23 3)"/>
+    <circle cx="30" cy="16" r="4.6" fill="#33404A"/>`,
+}[k]||'');
+
+/* ตัวละครหนึ่งตัว : ขา -> ลำตัว -> แขน -> หน้า
+   หน้าตาใช้ชุดเดียวกันทุกตัว เพื่อให้ดูเป็นของสะสมชุดเดียวกัน
+   คลาส .tw ครอบไว้ให้ CSS ทำท่าเดิน (เด้ง + เอียง) ชั้นเดียว ไม่ใช่ต่ออวัยวะ */
+function toySvg(t,cls=''){
+  const[c1,c2]=t.c;
+  return `<svg class="toy${cls?' '+cls:''}" viewBox="-50 -56 100 106" aria-hidden="true">
+    <ellipse cx="0" cy="46" rx="26" ry="4.5" fill="#123A4D" opacity=".16"/>
+    <g class="tw">
+      <rect x="-13" y="26" width="9" height="17" rx="4.5" fill="${c2}"/>
+      <rect x="4" y="26" width="9" height="17" rx="4.5" fill="${c2}"/>
+      <ellipse cx="-8.5" cy="43" rx="8" ry="4.4" fill="#33404A"/>
+      <ellipse cx="8.5" cy="43" rx="8" ry="4.4" fill="#33404A"/>
+      ${toyBody(t.kind,t.c,t.a)}
+      <ellipse cx="-25" cy="6" rx="5.5" ry="9" fill="${c2}" transform="rotate(-16 -25 6)"/>
+      <ellipse cx="25" cy="6" rx="5.5" ry="9" fill="${c2}" transform="rotate(16 25 6)"/>
+      ${t.nf?'':`<g>
+        <ellipse cx="-8" cy="-6" rx="7" ry="7.6" fill="#fff"/>
+        <ellipse cx="8" cy="-6" rx="7" ry="7.6" fill="#fff"/>
+        <circle cx="-7" cy="-4.5" r="3.4" fill="#22323C"/>
+        <circle cx="9" cy="-4.5" r="3.4" fill="#22323C"/>
+        <circle cx="-8.4" cy="-6.4" r="1.2" fill="#fff"/>
+        <circle cx="7.6" cy="-6.4" r="1.2" fill="#fff"/>
+        <path d="M-5 6q5 5 10 0" fill="none" stroke="#22323C" stroke-width="2.4" stroke-linecap="round"/>
+        <ellipse cx="-17" cy="4" rx="4" ry="2.6" fill="#FF9FD0" opacity=".5"/>
+        <ellipse cx="17" cy="4" rx="4" ry="2.6" fill="#FF9FD0" opacity=".5"/>
+      </g>`}
+    </g></svg>`;
+}
+
+/* เหรียญที่ได้ต่อรอบ : ผูกกับ "ทำได้ดีแค่ไหน" ไม่ใช่แค่ "เล่นจบ"
+   แต่พื้นฐานต้องได้เสมอ เพราะหน้าสรุปสัญญาไว้ว่าเล่นจบได้รางวัลทุกครั้ง
+   เด็กที่ทำได้น้อยจึงยังสะสมได้ ช้ากว่าเท่านั้น */
+function coinsFor(){
+  const wins=G.results.filter(Boolean).length;
+  let c=10+wins*6;
+  const rows=S.runStats?S.runStats.rows.filter(r=>r.v!=null):[];
+  if(rows.length)c+=Math.round(mean(rows.map(r=>r.v))/4);
+  c+=rows.filter(r=>r.record).length*12;
+  return Math.max(10,Math.min(140,Math.round(c)));
+}
+
+/* สุ่มตามน้ำหนักของระดับความหายาก แล้วสุ่มตัวในระดับนั้น
+   ระดับที่เด็กยังไม่มีตัวไหนเลยจะถูกหยิบก่อน เพื่อให้การหมุนแรก ๆ ได้ตัวใหม่
+   (กันความรู้สึกแย่จากการได้ตัวซ้ำสามครั้งติดตอนยังมีของสะสมแค่ตัวเดียว) */
+function rollToy(){
+  const total=Object.values(RARITY).reduce((s,r)=>s+r.w,0);
+  let x=Math.random()*total,tier=1;
+  for(const k of Object.keys(RARITY)){x-=RARITY[k].w;if(x<=0){tier=+k;break}}
+  const pool=TOYS.filter(t=>t.r===tier);
+  const owned=S.p.toys||{};
+  const fresh=pool.filter(t=>!owned[t.id]);
+  const pick=(fresh.length?fresh:pool)[Math.floor(Math.random()*(fresh.length?fresh.length:pool.length))];
+  return pick;
+}
+
+/* วงล้อตอนหมุน : ไล่ตัวอย่างของเล่นขึ้นไปเรื่อย ๆ แล้วค่อย ๆ ช้าลงจนหยุดที่ตัวที่ได้
+   ตัวสุดท้ายของแถบคือผลจริง ผลถูกสุ่มไว้ตั้งแต่ตอนกดปุ่มแล้ว ไม่ได้สุ่มตอนหยุด
+   ช่วงท้ายใช้ ease-out ยาว ๆ ให้รู้สึกลุ้น ไม่ใช่หยุดกึก
+   ไม่มีการกะพริบถี่ในสเต็ปนี้ ด้วยเหตุผลเดียวกับพลุ (ดูหมายเหตุที่ hpFirework) */
+function spinReel(win){
+  const strip=[];
+  for(let i=0;i<13;i++)strip.push(TOYS[Math.floor(Math.random()*TOYS.length)]);
+  strip.push(win);
+  return `<div class="rollout spinning">
+    <div class="reelbox"><div class="reelstrip" style="--n:${strip.length}">
+      ${strip.map(t=>`<div class="reelcell">${toySvg(t)}</div>`).join('')}
+    </div><div class="reelfade"></div></div>
+    <span>กำลังสุ่ม...</span></div>`;
+}
+
+SC.market=()=>{
+  const p=S.p,owned=p.toys||{},nOwn=Object.keys(owned).length;
+  const last=S.lastRoll;
+  return `<div class="screen">
+  <button class="back" data-go="home">${ico('arrow-left')} กลับไปที่เกาะ</button>
+  <div class="kh"><span class="eyebrow">ร้านของสะสม</span>
+    <h1>ตู้สุ่มของเล่นเพี้ยน</h1>
+    <p>เล่นภารกิจให้ได้เหรียญ แล้วเอามาหมุนตู้ ของเล่นที่ได้จะออกไปเดินเล่นอยู่ในฉากหลัง</p></div>
+  <div class="mkgrid">
+    <div class="paper mkroll">
+      <div class="coinrow">${ico('diamond')}<b>${p.coins||0}</b><span>เหรียญ</span></div>
+      ${S.spinning?spinReel(S.spinning):
+        last?`<div class="rollout ${last.dup?'dup':'new'} t${last.toy.r}">
+        <div class="rayring">${Array.from({length:12},(_,i)=>
+          `<i style="--a:${i*30}deg"></i>`).join('')}</div>
+        ${toySvg(last.toy,'xl')}
+        <b>${last.toy.n}</b><span>${last.toy.th}</span>
+        <span class="rtag" style="--rc:${RARITY[last.toy.r].col}">${RARITY[last.toy.r].th}</span>
+        <em>${last.dup?`มีตัวนี้แล้ว คืนเหรียญให้ +${RARITY[last.toy.r].back}`:'ได้ตัวใหม่แล้ว!'}</em>
+      </div>`:`<div class="rollout idle"><div class="capsule">${ico('sparkle')}</div>
+        <span>กดหมุนเพื่อสุ่มของเล่นหนึ่งตัว</span></div>`}
+      <button class="big" data-roll="1" ${S.spinning||(p.coins||0)<ROLL_COST?'disabled':''}>
+        ${ico('sparkle')} ${S.spinning?'กำลังหมุน...':`หมุน ${ROLL_COST} เหรียญ`}</button>
+      ${(p.coins||0)<ROLL_COST?`<p class="mkhint">ยังไม่พอ เล่นอีกหนึ่งภารกิจก็ได้เพิ่มแล้ว</p>`:''}
+    </div>
+    <div class="paper mkbook">
+      <b>สมุดของสะสม <i>${nOwn}/${TOYS.length}</i></b>
+      <div class="toygrid">
+        ${TOYS.map(t=>{const have=owned[t.id];
+          return `<div class="toycard ${have?'have':'miss'}" style="--rc:${RARITY[t.r].col}">
+            <div class="toypic">${have?toySvg(t):`<span class="qm">?</span>`}</div>
+            <b>${have?t.th:'ยังไม่พบ'}</b>
+            <span>${have?t.n:RARITY[t.r].th}</span>
+            ${have>1?`<i class="dupn">x${have}</i>`:''}</div>`}).join('')}
+      </div>
+    </div>
+  </div></div>`;
+};
+
+/* วาดชั้นของเล่นที่เดินอยู่ในพื้นหลัง
+   สร้างใหม่เฉพาะเมื่อ "ชุดที่ครอบครอง" เปลี่ยน ไม่ใช่ทุกครั้งที่เปลี่ยนหน้า
+   ถ้าสร้างใหม่ทุกครั้ง animation จะรีสตาร์ต ตัวละครจะกระโดดกลับไปตั้งต้นทุกครั้งที่กดปุ่ม */
+function paintToys(){
+  const layer=$('toylayer');if(!layer)return;
+  const owned=(S.p&&S.p.toys)||{};
+  const sig=Object.keys(owned).sort().join(',');
+  if(layer.dataset.sig===sig)return;
+  layer.dataset.sig=sig;
+  /* จำกัดจำนวนตัวที่เดินพร้อมกัน — ของเล่นหนึ่งตัวกิน 2 animation
+     สะสมครบ 23 ตัวจะกลายเป็น 46 ตัวบวกกับฉากเดิม ซึ่งเคยวัดแล้วว่าเริ่มกินเฟรม
+     เลือกโชว์ตัวที่หายากที่สุดที่มี เพราะนั่นคือของที่เด็กอยากอวด
+     ทุกตัวยังเห็นได้ครบในสมุดของสะสมที่หน้าร้าน */
+  const ids=TOYS.filter(t=>owned[t.id])
+    .sort((a,b)=>b.r-a.r).slice(0,TOY_SHOWCASE).map(t=>t.id),n=ids.length;
+  layer.innerHTML=ids.map((id,i)=>{
+    const t=TOY_BY_ID[id];
+    const dur=26+(i%5)*7, dly=-(i*4.6)%dur, dir=i%2?'rl':'lr';
+    const bottom=6+(i%4)*5, size=58+(t.r*7);
+    /* --park = ที่จอดตอนปิด animation ใช้กฎ CSS เดียวคุมทุกตัว
+       กระจายตามจำนวนที่มีจริง ไม่ใช่ระยะคงที่ต่อตัว ไม่งั้นพอสะสมครบ
+       ตัวท้าย ๆ จะถูกดันออกนอกจอและเด็กจะไม่เห็นของที่อุตส่าห์สุ่มมาได้ */
+    const park=n>1?(6+i/(n-1)*80).toFixed(1):40;
+    return `<div class="toywalk ${dir}" style="--d:${dur}s;--dly:${dly}s;
+      --park:${park}%;bottom:${bottom}%;width:${size}px">${toySvg(t)}</div>`;
+  }).join('');
+}
+
 SC.reward=()=>{
   const ok=G.results.filter(Boolean).length,n=G.results.length;
   return `<div class="center screen"><div style="width:100%;max-width:560px;text-align:center">
@@ -3025,6 +3816,14 @@ SC.reward=()=>{
   ${S.unlocked?`<div class="unlock">${ico('flag')}<div>
     <b>ปลดล็อกด่าน ${S.p.level} แล้ว</b>
     <span>${LEVELS[S.p.level-1].th} · ${LEVELS[S.p.level-1].modes[S.p.mode].name}</span></div></div>`:''}
+  ${S.coinGain?`<div class="coinwin">${ico('diamond')}<div>
+    <b>ได้ ${S.coinGain} เหรียญ</b>
+    <span>รวมมีอยู่ ${S.p.coins} เหรียญ · ${(S.p.coins>=ROLL_COST)?'พอหมุนตู้ของเล่นแล้ว':`อีก ${ROLL_COST-S.p.coins} เหรียญจะหมุนตู้ได้`}</span></div>
+    <button class="mkgo" data-go="market">ไปที่ร้าน</button></div>`:''}
+  ${S.runStats?`<div class="paper statcard" style="margin:var(--s4) 0;text-align:left">
+    <b>ความก้าวหน้าของด่าน ${S.runStats.level}</b>
+    <small>รอบที่ ${S.runStats.runs} ของด่านนี้ · แท่งคือคะแนนรอบนี้ ขีดคือสถิติที่ดีที่สุดก่อนรอบนี้</small>
+    ${statBars(S.runStats.rows)}</div>`:''}
   <div class="paper" style="margin:var(--s4) 0">
     <div class="seedgrid">
       ${Array.from({length:9},(_,i)=>i<S.p.seeds
@@ -3466,6 +4265,14 @@ function paint(){
      ฟังก์ชัน mount ของหน้าใหม่จะลงทะเบียนใหม่เองถ้าหน้านั้นใช้กล้อง */
   HT.onstate=null;
   if(!camScreen())HT.stop();
+  /* บอกโซนและชื่อหน้าปัจจุบันให้ CSS รู้ โซนใช้ตาราง ZONES ตัวเดียวกับม่านเปลี่ยนหน้า
+     ฉากพื้นหลังจะหรี่ลงในโซน play เพราะแผนที่และจอเกมมีภาพของตัวเองอยู่แล้ว
+     ต้องมี data-screen แยกด้วย เพราะหน้าสรุปอยู่โซน play แต่ควรได้ฉากเต็ม
+     (ย้าย reward ออกจากโซน play ใน ZONES ไม่ได้ เดี๋ยวม่านจะกลับมาขึ้นตอน
+      แผนที่ -> ด่าน -> สรุป -> แผนที่ ซึ่งเป็นสิ่งที่เพิ่งเอาออกไป) */
+  document.body.dataset.zone=zoneOf(S.screen);
+  document.body.dataset.screen=S.screen;
+  paintToys();                                    // มี guard ภายใน ไม่วาดซ้ำถ้าของสะสมไม่เปลี่ยน
   $('root').innerHTML=SC[S.screen]();
   topbar();
   if(S.screen==='game')mountGame();
@@ -3485,10 +4292,19 @@ function paint(){
 const WIPE=300;
 const WIPE_STYLES=['curtain','iris','doors','blob','stripes'];
 const WIPE_TINTS=['var(--grape)','var(--sun)','var(--berry)','var(--aqua)','var(--grass)'];
+/* ม่านขึ้นเฉพาะตอน "ข้ามหมวด" ไม่ใช่ทุกครั้งที่เปลี่ยนหน้า
+   เดิมทุกการเปลี่ยนหน้ามีม่านหมด รอบเล่นหนึ่งรอบ (แผนที่ -> ด่าน -> สรุป -> แผนที่)
+   จึงเจอม่านสามครั้ง ซึ่งถี่เกินไปจนกลายเป็นสิ่งกวนใจแทนที่จะช่วยเล่าเรื่อง
+   หน้าที่อยู่หมวดเดียวกันสลับทันทีด้วย paint()
+   หน้าไหนไม่ได้ระบุไว้ถือเป็นหมวด play ทั้งหมด (แผนที่ ด่านทั้งแปด และหน้าสรุป)
+   ถ้าอยากให้ตอนเข้าด่านมีม่านด้วย ย้ายชื่อหน้าเกมออกมาเป็นหมวดของตัวเองในตารางนี้ */
+const ZONES={landing:'intro',login:'login',pick:'login',code:'login',
+  toy:'setup',mode:'setup',dash:'pro',editor:'pro'};
+const zoneOf=s=>ZONES[s]||'play';
 let prevScreen=null,wiping=false,lastWipe=-1,lastTint=-1;
 const pickNot=(n,last)=>{let i;do{i=Math.floor(Math.random()*n)}while(n>1&&i===last);return i};
 function render(){
-  const changed=prevScreen!==null&&S.screen!==prevScreen;
+  const changed=prevScreen!==null&&zoneOf(S.screen)!==zoneOf(prevScreen);
   prevScreen=S.screen;
   if(!changed||wiping||stillMode()){paint();return}
   wiping=true;
@@ -3511,13 +4327,24 @@ function openEditor(p,isNew){S.draft=p;S.editingNew=isNew;S.screen='editor';rend
    ก่อนหน้านี้ไม่มีอะไรเพิ่ม p.level เลย แผนที่จึงล็อกค้างอยู่ที่ค่าในแฟ้มตลอด */
 function goReward(){
   S.unlocked=false;
+  /* ต้องเก็บสถิติก่อนบล็อกปลดล็อกด้านล่าง เพราะบล็อกนั้นเขียน S.sel ใหม่
+     ถ้าสลับลำดับ คะแนนจะไปลงด่านที่เพิ่งปลดล็อก ไม่ใช่ด่านที่เพิ่งเล่นจบ */
+  commitStats();
+  /* ให้เหรียญหลัง commitStats เพราะสูตรอ่านจาก S.runStats (สถิติใหม่ = โบนัส) */
+  S.coinGain=0;
   if(S.p){
+    S.coinGain=coinsFor();
+    S.p.coins=(S.p.coins||0)+S.coinGain;
     /* โหมด toy เล่นที่ตัวของเล่น ไม่มีผลบนจอให้ตัดสิน จึงถือว่าเล่นจบคือผ่าน */
     const won=S.p.mode==='toy'?1:G.results.filter(Boolean).length;
     if(won>=1&&S.sel>=S.p.level&&S.p.level<LEVELS.length){
       S.p.level=Math.min(LEVELS.length,S.sel+1);
-      S.sel=S.p.level;S.unlocked=true;saveStore();
+      S.sel=S.p.level;S.unlocked=true;
     }
+    /* บันทึกครั้งเดียวตรงนี้ ครอบคลุมทั้งเหรียญ ด่านที่ปลดล็อก และสถิติ
+       เดิมบันทึกเฉพาะตอนปลดล็อกด่าน ส่วน commitStats() ก็บันทึกก่อนบวกเหรียญ
+       จบรอบที่ไม่ได้ปลดล็อกอะไรจึงได้เหรียญแค่ในหน่วยความจำ แล้วหายตอนรีเฟรช */
+    saveStore();
   }
   S.screen='reward';render();
 }
@@ -3528,6 +4355,25 @@ document.addEventListener('click',e=>{
     if(t==='reward'){goReward();return}
     if(t==='login'){S.screen='login';S.p=null}else S.screen=t;
     render();return;}
+  /* หมุนตู้ : หักเหรียญ -> สุ่ม -> บันทึก -> วาดชั้นของเล่นใหม่
+     ใช้ paint() ไม่ใช่ render() จะได้ไม่มีม่านคั่นระหว่างหมุนติด ๆ กัน */
+  if(e.target.closest('[data-roll]')){
+    if(!S.p||S.spinning||(S.p.coins||0)<ROLL_COST)return;
+    S.p.coins-=ROLL_COST;
+    if(!S.p.toys)S.p.toys={};
+    /* สุ่มผลทันทีตั้งแต่กด แล้วค่อยเล่นภาพหมุนให้ดู
+       ถ้าสุ่มตอนวงล้อหยุด ผลจะขึ้นกับจังหวะการเรนเดอร์ ซึ่งไม่ควร */
+    const t=rollToy(),dup=!!S.p.toys[t.id];
+    S.p.toys[t.id]=(S.p.toys[t.id]||0)+1;
+    if(dup)S.p.coins+=RARITY[t.r].back;
+    S.lastRoll={toy:t,dup,at:Date.now()};
+    saveStore();
+    /* ปิดภาพเคลื่อนไหวอยู่ = เฉลยเลย ไม่ต้องรอวงล้อที่ไม่หมุน */
+    if(stillMode()){paint();return}
+    S.spinning=t;paint();
+    setTimeout(()=>{S.spinning=null;if(S.screen==='market')paint()},SPIN_MS);
+    return;
+  }
   if(e.target.closest('[data-newprofile]')){openEditor(blankProfile(),true);return}
   if(e.target.closest('[data-editprofile]')){openEditor(S.p,false);return}
   const kid=e.target.closest('[data-kid]');
@@ -3577,6 +4423,197 @@ document.addEventListener('input',e=>{
   }
 });
 render();
+
+/* ==========================================================================
+   ฉากพื้นหลังของเว็บ — ชั้นที่อยู่หลังกล่อง UI ทั้งหมด (.scene ใน index.html)
+   --------------------------------------------------------------------------
+   เดิมชั้นนี้มีแค่ดวงอาทิตย์ เมฆสี่ก้อน และแถบเนินเขียวเปล่า ๆ สามแถบ
+   คนละอันกับฉากในกรอบแผนที่ด่าน (roadScene) ซึ่งอยู่ในการ์ดของตัวเอง
+
+   ข้อจำกัดที่กำหนดว่าอะไรวางได้ที่ไหน
+   1) ชั้นนี้ position:fixed จึงอยู่หลัง "ทุกหน้า" ของฝั่งเด็ก รวมถึงจอเกมทั้งแปด
+      ของประดับจึงต้องเงียบพอที่จะไม่แย่งความสนใจจากการ์ดและจากตัวเกม
+   2) หัวเรื่องวางทับพื้นหลังนี้ตรง ๆ (ตัวอักษรขาวบนฟ้าอ่อนวัดได้ 1.52:1
+      จึงต้องใช้ --ink + เงาขาว) ของประดับต้องเลี่ยงแถบกลางบนที่หัวเรื่องลง
+      เก็บไว้ริมขอบและด้านล่างเท่านั้น
+   3) ของที่ไถลข้ามจอต้องมีตำแหน่งสำรองตอนปิด animation เหมือนเมฆ .c1–.c4
+      นก/บอลลูนที่นี่จึงเคลื่อนเป็นวงกลับที่เดิม ไม่ไถลข้ามจอ จะได้ไม่ต้องมีสำรอง
+
+   ของบนเนิน "นิ่งทั้งหมด" โดยตั้งใจ : ชั้นนี้แสดงอยู่ตลอดเวลาทุกหน้า
+   ถ้าให้ไหวด้วยจะเสีย animation ทิ้งไว้ตลอดการใช้งาน ทั้งที่เป็นฉากไกล
+   ความมีชีวิตมาจากนก บอลลูน และเมฆ ซึ่งใช้ animation รวมกันไม่ถึงสิบตัว
+   ========================================================================== */
+/* กระจุกต้นไม้/พุ่ม/ดอกไม้บนไหล่เนิน — ประกอบจากตัวช่วยชุดเดียวกับฉากแผนที่
+   ไม่วาดซ้ำในไฟล์ index.html เพราะสองชุดจะเพี้ยนออกจากกันเมื่อแก้ทีหลัง */
+const hpCluster=v=>[
+  scTree(38,88,1.05,0,0,'')+scTree(120,88,.8,1,0,'')+scBush(74,89,.9,0)
+   +scFlower(16,88,.95,0,0)+scFlower(96,88,.85,2,0)+scFlower(152,88,.9,4,0)
+   +scTuft(58,89,.9,0)+scTuft(136,89,.8,0),
+  scTree(64,88,1.15,1,0,'')+scBush(24,89,1,0)+scBush(126,89,.85,0)
+   +scFlower(44,88,.9,1,0)+scFlower(104,88,.95,3,0)+scFlower(160,88,.8,0,0)
+   +scTuft(12,89,.85,0)+scTuft(88,89,.9,0),
+  scTree(30,88,.9,1,0,'')+scTree(104,88,1.1,0,0,'')+scTree(154,88,.75,1,0,'')
+   +scBush(66,89,.95,0)+scFlower(80,88,.9,2,0)+scFlower(130,88,.85,4,0)
+   +scTuft(46,89,.9,0)+scTuft(120,89,.8,0),
+][v];
+
+/* ---- ระบบกลางวัน–กลางคืน ----
+   วงรอบเดียว 360 วิ : กลางวัน -> พลบ -> กลางคืนเต็มที่นาทีที่ 3 (50%) -> รุ่งสาง -> กลางวัน
+   ทุกชิ้นที่ต้องรู้เวลา (ม่านคืน ดาว พระจันทร์ ดวงอาทิตย์ ไฟบ้าน พลุ) ใช้ duration
+   360s เท่ากันหมด จึงตรงกันเองโดยไม่ต้องมี timer ใน JS คอยสั่ง
+   ผลพลอยได้ที่สำคัญ : ปิด animation แล้วทุกอย่างค้างที่ 0% = กลางวันเสมอ
+   ไม่มีพลุ ไม่มีท้องฟ้ามืดค้าง จึงไม่ต้องเขียนตำแหน่งสำรองให้ระบบนี้เลย */
+const DAYNIGHT_S=360;
+/* ดาว : สุ่มครั้งเดียวตอนสร้าง ไม่ให้กระพริบทีละดวง (กระพริบ = ต้นทุน animation ต่อดวง)
+   ใช้ค่าคงที่แบบ deterministic เพื่อให้ตำแหน่งเดิมทุกครั้งที่โหลด */
+const hpStars=()=>{const r=mulberry32(20260730);let s='';
+  for(let i=0;i<64;i++){const x=r()*100,y=r()*58,rad=(r()*1.3+.5).toFixed(2),o=(r()*.55+.35).toFixed(2);
+    s+=`<circle cx="${x.toFixed(2)}%" cy="${y.toFixed(2)}%" r="${rad}" fill="#fff" opacity="${o}"/>`}
+  return s};
+
+/* พลุ : บานช้าแล้วจางหาย ไม่ใช่แฟลชกระพริบ
+   ผู้ใช้จริงคือเด็กสมองพิการ ซึ่งมีภาวะลมชักร่วมราวหนึ่งในสาม แสงวาบถี่ ๆ จึงเป็นความเสี่ยง
+   แต่ละดอกใช้เวลาบานและจางรวมเกือบสองวินาที และทั้งจอมีไม่เกินสองดอกพร้อมกัน
+   อัตราการวาบจึงต่ำกว่าเกณฑ์ WCAG 2.3.1 (สามครั้งต่อวินาที) อยู่มาก
+   และพลุถูกปิดสนิทในโซนเล่น เด็กจะได้ไม่เสียสมาธิระหว่างทำภารกิจ */
+const hpFirework=(x,y,s,c1,c2,i)=>`<svg class="fw f${i}" aria-hidden="true"
+  style="left:${x}%;top:${y}%;width:${s}px" viewBox="-50 -50 100 100">
+  <g class="fw-burst">
+    ${Array.from({length:12},(_,k)=>{const a=k*30*Math.PI/180;
+      return `<line x1="${(Math.cos(a)*12).toFixed(1)}" y1="${(Math.sin(a)*12).toFixed(1)}"
+        x2="${(Math.cos(a)*40).toFixed(1)}" y2="${(Math.sin(a)*40).toFixed(1)}"
+        stroke="${k%2?c1:c2}" stroke-width="2.6" stroke-linecap="round"/>`}).join('')}
+    ${Array.from({length:12},(_,k)=>{const a=(k*30+15)*Math.PI/180;
+      return `<circle cx="${(Math.cos(a)*33).toFixed(1)}" cy="${(Math.sin(a)*33).toFixed(1)}"
+        r="2.4" fill="${k%2?c2:c1}"/>`}).join('')}
+    <circle r="4" fill="#fff" opacity=".9"/>
+  </g></svg>`;
+
+/* เครื่องบิน : ลำเล็กพร้อมควันจาง ๆ ข้ามฟ้าไปทางขวา */
+const hpPlane=()=>`<svg class="plane" viewBox="0 0 120 34" aria-hidden="true">
+  <path d="M2 19 q30 -3 58 -4" stroke="#fff" stroke-width="4" fill="none"
+    stroke-linecap="round" opacity=".38"/>
+  <path d="M32 20 q18 -4 34 -5" stroke="#fff" stroke-width="5.5" fill="none"
+    stroke-linecap="round" opacity=".22"/>
+  <path d="M66 14 l24 1 q10 .5 12 3.5 -2 3 -12 3.5 l-24 1 -8 -4.5z" fill="#F4F9FC"/>
+  <path d="M74 15 l-7 -9 h6 l11 9z" fill="#DCEAF1"/>
+  <path d="M74 21 l-7 9 h6 l11 -9z" fill="#C9DDE7"/>
+  <path d="M96 16 h7 l4 3 -4 3 h-7z" fill="#8FD8FF"/>
+  <circle cx="88" cy="19" r="1.5" fill="#5E7C8B"/><circle cx="82" cy="19" r="1.5" fill="#5E7C8B"/>
+</svg>`;
+
+/* กระท่อมบนเนิน : หน้าต่างสว่างเป็นสีส้มอุ่นตอนกลางคืน ผูกกับวงรอบ 360 วิเดียวกัน
+   เป็นวิธีบอกเวลาที่อ่านง่ายกว่าท้องฟ้าอย่างเดียว โดยไม่ต้องเพิ่มแสงวาบ */
+const hpHouse=(w,roof)=>`<g>
+  <ellipse cx="0" cy="30" rx="34" ry="4.5" fill="#2E7D1C" opacity=".2"/>
+  <rect x="-24" y="-2" width="48" height="32" rx="3" fill="${w}"/>
+  <path d="M-30 -2 L0 -26 L30 -2z" fill="${roof}"/>
+  <path d="M-30 -2 L0 -26 L0 -2z" fill="#000" opacity=".07"/>
+  <rect x="12" y="-24" width="8" height="12" rx="2" fill="${roof}"/>
+  <rect x="-6" y="10" width="12" height="20" rx="1.5" fill="#8A5A2B"/>
+  <circle cx="3" cy="20" r="1.2" fill="#FFD98A"/>
+  <g><rect x="-19" y="4" width="11" height="10" rx="1.5" fill="#3E5A68"/>
+     <rect class="lit" x="-19" y="4" width="11" height="10" rx="1.5" fill="#FFC94F"/>
+     <rect x="-19" y="4" width="11" height="10" rx="1.5" fill="none" stroke="${roof}" stroke-width="1.6"/></g>
+  <g><rect x="9" y="4" width="11" height="10" rx="1.5" fill="#3E5A68"/>
+     <rect class="lit" x="9" y="4" width="11" height="10" rx="1.5" fill="#FFC94F"/>
+     <rect x="9" y="4" width="11" height="10" rx="1.5" fill="none" stroke="${roof}" stroke-width="1.6"/></g>
+</g>`;
+
+/* รถบนถนนชนบทหลังแนวต้นไม้ */
+const hpCar=(body,roof)=>`<svg class="gcar" viewBox="0 0 44 26" aria-hidden="true">
+  <ellipse cx="22" cy="22" rx="17" ry="3" fill="#2E7D1C" opacity=".22"/>
+  <path d="M13 10 q2 -7 6 -7h7q4 0 6 7z" fill="${roof}"/>
+  <rect x="5" y="10" width="34" height="10" rx="4.4" fill="${body}"/>
+  <rect x="5" y="13" width="34" height="3" rx="1.5" fill="#000" opacity=".08"/>
+  <circle cx="35" cy="14" r="1.8" fill="#FFF1D6"/>
+  <circle cx="13" cy="20" r="3.8" fill="#33404A"/><circle cx="13" cy="20" r="1.6" fill="#CFD9DF"/>
+  <circle cx="31" cy="20" r="3.8" fill="#33404A"/><circle cx="31" cy="20" r="1.6" fill="#CFD9DF"/>
+</svg>`;
+
+/* นกสามตัวบินเป็นฝูง : ทั้งฝูงวนเป็นวงรีกลับมาที่เดิม ปีกกระพือแยกอีกชั้น
+   รวมสอง animation ต่อฝูง ไม่ใช่ต่อตัว */
+const hpBird=(x,y,s,i)=>`<g transform="translate(${x} ${y}) scale(${s})">
+  <path class="hp-wing b${i}" d="M-9 0 Q-4.5 -5 0 0 Q4.5 -5 9 0" fill="none"
+    stroke="#5E7C8B" stroke-width="2.2" stroke-linecap="round" opacity=".75"/></g>`;
+
+/* บอลลูน : ลอยขึ้นลงและเอนเล็กน้อยอยู่กับที่ ไม่ลอยข้ามจอ */
+const hpBalloon=()=>`<svg class="balloon" viewBox="0 0 70 100" aria-hidden="true">
+  <g class="hp-float">
+    <path d="M35 4C50 4 60 17 60 30 60 45 46 58 35 68 24 58 10 45 10 30 10 17 20 4 35 4Z" fill="#FF9FD0"/>
+    <path d="M35 4C42 4 47 17 47 30 47 45 41 58 35 68 35 58 35 17 35 4Z" fill="#FFC2DA" opacity=".85"/>
+    <path d="M22 8C27 18 27 52 30 66 24 57 12 44 12 30 12 21 16 12 22 8Z" fill="#E8548F" opacity=".55"/>
+    <path d="M28 68h14l-2 6H30z" fill="#C87A00"/>
+    <path d="M30 74h10v8a2 2 0 0 1-2 2h-6a2 2 0 0 1-2-2z" fill="#A9743C"/>
+    <path d="M31 74 34 68 M39 74 36 68" stroke="#8A5A2B" stroke-width="1.2" fill="none"/>
+  </g></svg>`;
+
+/* ตำแหน่งกระจุกบนเนิน : left/bottom เป็น % จึงเลื่อนตามความสูงของแถบเนินเสมอ
+   (แถบเนินสูง min(30vh,250px) เปลี่ยนตามจอ ถ้าใช้ px ต้นไม้จะลอยหลุดสันเนิน) */
+const HP_POS=[[1,9,150,0],[12,13,120,1],[23,8,165,2],[34,12,130,0],[45,9,155,1],
+              [56,13,125,2],[67,8,160,0],[78,12,135,1],[88,9,150,2],[95,14,115,0]];
+function mountPageScene(){
+  const sc=document.querySelector('.scene');
+  if(!sc||sc.dataset.props)return;                 // ผูกครั้งเดียว .scene อยู่นอก #root
+  sc.dataset.props='1';
+  const props=HP_POS.map(([l,b,w,v])=>`<svg class="hp" viewBox="0 0 180 96"
+    style="left:${l}%;bottom:${b}%;width:${w}px" aria-hidden="true">${hpCluster(v)}</svg>`).join('');
+  const flock=`<svg class="flock" viewBox="0 0 120 60" aria-hidden="true"><g class="hp-circle">
+    ${hpBird(24,30,1,1)}${hpBird(60,18,.8,2)}${hpBird(86,38,.9,3)}</g></svg>`;
+  /* เมฆเพิ่มอีกสองก้อนใช้คลาสเดิม .cl จึงได้ drift/wave และตำแหน่งสำรองชุดเดียวกัน */
+  const clouds=`<span class="cl c5"><i></i></span><span class="cl c6"><i></i></span>`;
+  /* ม่านกลางคืน : วางไว้ "หน้า" ท้องฟ้าแต่ "หลัง" ของประดับทุกชิ้น
+     ดาวอยู่ในม่านเดียวกัน จึงจางเข้าออกพร้อมกันโดยไม่ต้องมี animation ของตัวเอง */
+  const night=`<svg class="nightsky" preserveAspectRatio="none" aria-hidden="true">
+    <rect width="100%" height="100%" fill="url(#nightgrad)"/>
+    <defs><linearGradient id="nightgrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#132A4D"/><stop offset="55%" stop-color="#27406B"/>
+      <stop offset="100%" stop-color="#3C5580"/></linearGradient></defs>
+    ${hpStars()}</svg>
+    <svg class="moon" viewBox="0 0 90 90" aria-hidden="true">
+      <circle cx="45" cy="45" r="27" fill="#FFF6D6"/>
+      <circle cx="36" cy="38" r="4.5" fill="#EADFB8" opacity=".8"/>
+      <circle cx="53" cy="52" r="6" fill="#EADFB8" opacity=".65"/>
+      <circle cx="52" cy="33" r="3" fill="#EADFB8" opacity=".7"/>
+    </svg>`;
+  const fw=[[16,17,150,'#FFD98A','#FF9FD0',1],[74,13,170,'#8FD8FF','#FFC94F',2],
+            [43,9,140,'#FF9FD0','#fff',3],[88,24,130,'#A99BF5','#FFD98A',4],
+            [30,26,120,'#7BD256','#FFF1D6',5]]
+    .map(a=>hpFirework(...a)).join('');
+  /* ถนนชนบท + รถ : ถนนยืดเต็มความกว้างได้ (ถนนที่ยืดก็ยังเป็นถนน)
+     แต่ตัวรถเป็น svg ของตัวเองจึงไม่ถูกยืดตาม */
+  const ground=`<div class="groundprops" aria-hidden="true">
+    <svg class="growrap" viewBox="0 0 1440 60" preserveAspectRatio="none">
+      <path d="M-20 40 Q360 22 720 34 T1460 26" fill="none" stroke="#D8C39C"
+        stroke-width="13" stroke-linecap="round" opacity=".65"/></svg>
+    ${hpCar('#4FA3D9','#2F7CB0')}
+    <svg class="house h1" viewBox="-40 -34 80 74">${hpHouse('#FFF1D6','#E8543F')}</svg>
+    <svg class="house h2" viewBox="-40 -34 80 74">${hpHouse('#F4F9FC','#6C5CE7')}</svg>
+  </div>`;
+  /* ชั้นของเล่นสะสม อยู่หน้าสุดของฉาก (แต่ยังหลัง #root) เด็กจะได้เห็นตัวที่สุ่มได้ชัด ๆ */
+  sc.insertAdjacentHTML('beforeend',
+    `${night}<div class="hillprops" aria-hidden="true">${props}</div>${ground}`
+    +`${flock}${hpBalloon()}${clouds}${hpPlane()}${fw}`
+    +`<div class="toylayer" id="toylayer" aria-hidden="true"></div>`);
+}
+mountPageScene();
+
+/* บอก CSS ว่าตอนนี้กลางวันหรือกลางคืน เพื่อสลับสีตัวอักษรที่วางบนพื้นหลังโดยตรง
+   --ink (#123A4D) บนท้องฟ้ากลางคืนได้ contrast ราว 1.3:1 คือ อ่านไม่ออก
+   จึงต้องเปลี่ยนเป็นตัวอักษรสว่างพร้อมเงาเข้มเมื่อฟ้ามืด
+
+   อ่านค่าความทึบของม่านคืน "ที่เรนเดอร์จริง" แทนการจับเวลาเอง
+   เพราะ animation จะถูกหยุดเมื่อแท็บไม่ได้แสดงผล ถ้าตั้งนาฬิกาแยกไว้จะเพี้ยนกัน
+   เช็คทุก 2 วิก็พอ การเปลี่ยนกลางวัน–กลางคืนกินเวลาเป็นสิบวินาทีอยู่แล้ว */
+(function watchDayNight(){
+  const sky=document.querySelector('.nightsky');if(!sky)return;
+  let cur='';
+  const tick=()=>{
+    const t=+getComputedStyle(sky).opacity>=.55?'night':'day';
+    if(t!==cur){cur=t;document.body.dataset.time=t}
+  };
+  tick();setInterval(tick,2000);
+})();
 
 /* ปุ่มสลับภาพเคลื่อนไหว — อยู่นอก #root จึงผูก listener ครั้งเดียวพอ */
 paintMotionBtn();

@@ -56,6 +56,254 @@ body[data-face="pro"] .scene{display:none}
 .c4{width:92px;height:26px;top:66%;left:-120px;opacity:.5;animation:drift 126s linear infinite -100s}
 .c1 i{animation-delay:-.8s}.c2 i{animation-duration:8.5s;animation-delay:-3s}
 .c3 i{animation-duration:6.2s;animation-delay:-4.5s}.c4 i{animation-duration:9s;animation-delay:-2s}
+.c5{width:140px;height:36px;top:20%;left:-160px;opacity:.5;animation:drift 116s linear infinite -84s}
+.c6{width:172px;height:44px;top:44%;left:-200px;opacity:.38;animation:drift 138s linear infinite -30s}
+.c5 i{animation-duration:7.4s;animation-delay:-1.6s}
+.c6 i{animation-duration:10s;animation-delay:-5.2s}
+
+/* ---- ของประดับบนเนินพื้นหลัง : นิ่งทั้งหมด (เหตุผลอยู่ที่ mountPageScene) ----
+   .hp เป็น <svg> แยกก้อน จึงคงสัดส่วนของตัวเอง ไม่ถูกยืดเหมือน .hills
+   ที่ตั้ง preserveAspectRatio="none" ไว้ ถ้าเอาต้นไม้ไปไว้ใน .hills มันจะแบนตามจอ */
+.hillprops{position:absolute;left:0;right:0;bottom:0;height:min(30vh,250px);pointer-events:none}
+.hp{position:absolute;transform:translateX(-50%);max-width:26vw;overflow:visible}
+
+/* ---- นกกับบอลลูน : เคลื่อนเป็นวงกลับที่เดิม จึงไม่ต้องมีตำแหน่งสำรอง ---- */
+.flock{position:absolute;top:13%;left:9%;width:clamp(74px,7.5vw,116px);overflow:visible}
+.hp-circle{transform-box:fill-box;transform-origin:center;
+  animation:hpCircle 34s ease-in-out infinite}
+@keyframes hpCircle{0%,100%{transform:translate(0,0)}
+  25%{transform:translate(4.2vw,-1.4vh)}50%{transform:translate(7vw,1.6vh)}
+  75%{transform:translate(3vw,2.4vh)}}
+/* กระพือปีกด้วย scaleY ไม่ใช่การไล่ค่า d
+   d:path() ทำได้แค่ใน Chrome เบราว์เซอร์อื่นปีกจะนิ่งเฉย ๆ ส่วน scaleY ใช้ได้ทุกที่
+   และนกสามตัวต้องคนละจังหวะ ไม่งั้นจะกระพือพร้อมกันเป๊ะเหมือนปัญหาของผีเสื้อ */
+.hp-wing{transform-box:fill-box;transform-origin:bottom center}
+.hp-wing.b1{animation:hpWing .58s ease-in-out infinite alternate}
+.hp-wing.b2{animation:hpWing .43s ease-in-out infinite alternate -.2s}
+.hp-wing.b3{animation:hpWing .71s ease-in-out infinite alternate -.35s}
+@keyframes hpWing{from{transform:scaleY(1)}to{transform:scaleY(.28)}}
+.balloon{position:absolute;top:27%;right:11%;width:clamp(40px,4.2vw,64px);opacity:.9;overflow:visible}
+.hp-float{transform-box:fill-box;transform-origin:bottom center;
+  animation:hpFloat 13s ease-in-out infinite}
+@keyframes hpFloat{0%,100%{transform:translate(0,0) rotate(-2.2deg)}
+  50%{transform:translate(1.4%,-3.4%) rotate(2.2deg)}}
+
+/* ==========================================================================
+   วงรอบกลางวัน–กลางคืน : ทุกอย่างใช้ duration 360s เท่ากัน จึงตรงกันเอง
+   0–30% กลางวัน · 42% พลบ · 50–66% กลางคืน (นาทีที่ 3 คือ 50%) · 78% รุ่งสาง
+   ห้ามเปลี่ยน duration ของชิ้นใดชิ้นหนึ่งเดี่ยว ๆ ไม่งั้นพลุจะไปโผล่ตอนกลางวัน
+   ปิด animation = ค้างที่ 0% = กลางวันเสมอ จึงไม่ต้องมีตำแหน่งสำรองให้ระบบนี้
+   ========================================================================== */
+.nightsky{position:absolute;inset:0;width:100%;height:100%;opacity:0;
+  animation:dnNight 360s linear infinite}
+@keyframes dnNight{0%,28%{opacity:0}42%{opacity:.62}50%,66%{opacity:1}
+  78%{opacity:.45}88%,100%{opacity:0}}
+/* พระจันทร์ขึ้นแทนที่ดวงอาทิตย์ ตำแหน่งเดียวกันแต่เยื้องลงนิดหนึ่ง */
+.moon{position:absolute;top:3.5vh;right:4vw;width:clamp(62px,7vw,100px);opacity:0;
+  animation:dnMoon 360s linear infinite;overflow:visible;
+  filter:drop-shadow(0 0 14px rgba(255,246,214,.55))}
+@keyframes dnMoon{0%,32%{opacity:0;transform:translateY(14px)}
+  50%,66%{opacity:1;transform:translateY(0)}82%,100%{opacity:0;transform:translateY(14px)}}
+/* ดวงอาทิตย์ยังเด้งเหมือนเดิม เพิ่ม animation ตัวที่สองคุมความจางอย่างเดียว
+   คนละ property กัน (transform กับ opacity) จึงใส่พร้อมกันได้ ไม่ทับกัน */
+.mascot{animation:bob 4.2s ease-in-out infinite,dnSun 360s linear infinite}
+@keyframes dnSun{0%,30%{opacity:1}48%,68%{opacity:0}86%,100%{opacity:1}}
+/* หน้าต่างบ้านติดไฟตอนกลางคืน — บอกเวลาได้โดยไม่ต้องเพิ่มแสงวาบ */
+.lit{opacity:0;animation:dnLit 360s linear infinite}
+@keyframes dnLit{0%,34%{opacity:0}50%,66%{opacity:1}80%,100%{opacity:0}}
+
+/* ---- พลุ ---- บานช้าแล้วจาง ไม่ใช่แฟลช (เหตุผลด้านความปลอดภัยอยู่ที่ hpFirework)
+   แต่ละดอกกินเวลาราว 1.8 วิ จากวงรอบ 360 วิ จึงเขียนเป็นช่วง % แคบ ๆ
+   ยิงคนละจังหวะในช่วงกลางคืน 50–66% ทั้งจอจึงมีไม่เกินสองดอกพร้อมกัน */
+.fw{position:absolute;transform:translate(-50%,-50%);opacity:0;overflow:visible}
+.fw-burst{transform-box:fill-box;transform-origin:center}
+.fw.f1{animation:fwA 360s linear infinite}
+.fw.f2{animation:fwA 360s linear infinite -1.6s}
+.fw.f3{animation:fwB 360s linear infinite}
+.fw.f4{animation:fwB 360s linear infinite -2.4s}
+.fw.f5{animation:fwC 360s linear infinite}
+.fw .fw-burst{animation:fwPop 360s linear infinite}
+.fw.f2 .fw-burst{animation-delay:-1.6s}
+.fw.f4 .fw-burst{animation-delay:-2.4s}
+.fw.f3 .fw-burst,.fw.f5 .fw-burst{animation-name:fwPopB}
+.fw.f5 .fw-burst{animation-name:fwPopC}
+@keyframes fwA{0%,51%{opacity:0}51.2%{opacity:1}51.9%{opacity:.95}52.5%{opacity:0}
+  57%{opacity:0}57.2%{opacity:1}57.9%{opacity:.95}58.5%,100%{opacity:0}}
+@keyframes fwB{0%,53.5%{opacity:0}53.7%{opacity:1}54.4%{opacity:.95}55%{opacity:0}
+  61%{opacity:0}61.2%{opacity:1}61.9%{opacity:.95}62.5%,100%{opacity:0}}
+@keyframes fwC{0%,64%{opacity:0}64.2%{opacity:1}64.9%{opacity:.95}65.5%,100%{opacity:0}}
+@keyframes fwPop{0%,51%{transform:scale(.15)}52.5%{transform:scale(1.05)}
+  57%{transform:scale(.15)}58.5%,100%{transform:scale(1.05)}}
+@keyframes fwPopB{0%,53.5%{transform:scale(.15)}55%{transform:scale(1.05)}
+  61%{transform:scale(.15)}62.5%,100%{transform:scale(1.05)}}
+@keyframes fwPopC{0%,64%{transform:scale(.15)}65.5%,100%{transform:scale(1.05)}}
+
+/* ---- ตัวอักษรที่วางบนพื้นหลังโดยตรง ต้องสลับสีตอนฟ้ามืด ----
+   ตัวหนังสือในการ์ดขาวไม่ต้องแตะ เพราะการ์ดมีพื้นของตัวเอง
+   จึงระบุเฉพาะข้อความที่ลอยอยู่บนฉากจริง ๆ ไม่ใช่เขียนทับ --ink ทั้งหน้า
+   (ถ้าเขียนทับโทเคนรวม ตัวหนังสือในการ์ดขาวจะกลายเป็นขาวบนขาว)
+   ขาวนวลบนกรมท่า #27406B วัดได้ราว 8:1 ผ่าน AA สบาย */
+body[data-time="night"]{color-scheme:dark}
+body[data-time="night"] .kh h1,
+body[data-time="night"] .kh p,
+body[data-time="night"] .landcopy h1,
+body[data-time="night"] .landcopy p,
+body[data-time="night"] .mark b,
+body[data-time="night"] .mark span,
+body[data-time="night"] .landstats span,
+body[data-time="night"] .screen>p{
+  color:#F2F8FC;text-shadow:0 2px 10px rgba(6,18,38,.75)}
+body[data-time="night"] .landstats b{color:#C7BDFF;text-shadow:0 2px 10px rgba(6,18,38,.75)}
+/* ปุ่มกลมกับป้ายท้ายจอมีพื้นขาวอยู่แล้ว แต่เงาแบบ --pop จมหายไปบนฟ้ามืด */
+body[data-time="night"] .foot{background:rgba(12,26,48,.72);color:#DCE9F2}
+/* ค่อย ๆ ไล่สีทุกชิ้นพร้อมกัน ไม่ใช่บางชิ้นเปลี่ยนทันทีบางชิ้นค่อย ๆ เปลี่ยน
+   หมายเหตุตอนทดสอบ : transition ไม่เดินในแท็บที่ไม่ได้แสดงผล ค่าที่อ่านได้จะค้างที่สีเดิม
+   ถ้าจะวัด contrast ด้วยสคริปต์ ต้องปิด transition ก่อนเสมอ ไม่งั้นจะสรุปผิดว่ากฎไม่ทำงาน */
+.kh h1,.kh p,.landcopy h1,.landcopy p,.mark b,.mark span,
+.landstats b,.landstats span,.screen>p,.foot{transition:color .8s ease,background-color .8s ease}
+
+/* ---- เครื่องบิน ---- ข้ามฟ้าไปทางขวา ต้องมีตำแหน่งสำรองเหมือนเมฆ */
+.plane{position:absolute;top:9%;left:-16%;width:clamp(88px,9vw,140px);opacity:.9;
+  animation:planeFly 96s linear infinite -28s}
+@keyframes planeFly{0%{transform:translateX(0)}100%{transform:translateX(calc(100vw + 20%))}}
+
+/* ---- ถนนชนบท + รถ ---- อยู่หลังแนวต้นไม้ จึงประกาศก่อน .hillprops ในลำดับ DOM */
+.groundprops{position:absolute;left:0;right:0;bottom:0;height:min(30vh,250px);pointer-events:none}
+.growrap{position:absolute;left:0;bottom:26%;width:100%;height:34px}
+.gcar{position:absolute;bottom:29%;left:-8%;width:clamp(34px,3.4vw,52px);
+  animation:gcarGo 54s linear infinite -12s}
+@keyframes gcarGo{0%{transform:translateX(0)}100%{transform:translateX(calc(100vw + 16%))}}
+.house{position:absolute;overflow:visible}
+.house.h1{left:22%;bottom:20%;width:clamp(58px,6vw,88px)}
+.house.h2{left:72%;bottom:23%;width:clamp(48px,5vw,74px)}
+
+/* ==========================================================================
+   ของเล่นสะสมที่เดินอยู่ในพื้นหลัง
+   เดินหนึ่งเที่ยวต่อหนึ่ง animation (เลื่อนตามแนวนอน) และท่าเดินอีกหนึ่งชั้น
+   รวมสองตัวต่อของเล่นหนึ่งชิ้น — อย่าเพิ่ม animation ให้แขนขาแยกอีก
+   ของสะสมเต็มชุดสิบตัวจะกลายเป็นยี่สิบ animation ซึ่งยังรับไหว
+   ========================================================================== */
+.toylayer{position:absolute;left:0;right:0;bottom:0;height:min(34vh,290px);
+  pointer-events:none;z-index:2}
+.toywalk{position:absolute;left:0;will-change:transform;
+  animation:toyGo var(--d) linear infinite var(--dly)}
+.toywalk.rl{animation-name:toyGoRL}
+.toywalk.rl .toy{transform:scaleX(-1)}
+@keyframes toyGo{0%{transform:translateX(-14vw)}100%{transform:translateX(104vw)}}
+@keyframes toyGoRL{0%{transform:translateX(104vw)}100%{transform:translateX(-14vw)}}
+.toy{width:100%;height:auto;overflow:visible;display:block}
+/* ท่าเดิน : เด้งขึ้นลงพร้อมเอียงตัวเล็กน้อย ทำให้ดูมีน้ำหนักกว่าการเลื่อนเฉย ๆ */
+.tw{transform-box:fill-box;transform-origin:bottom center;
+  animation:toyStep .62s ease-in-out infinite alternate}
+@keyframes toyStep{from{transform:translateY(0) rotate(-3deg)}
+  to{transform:translateY(-7%) rotate(3deg)}}
+.toywalk:nth-child(2n) .tw{animation-duration:.74s}
+.toywalk:nth-child(3n) .tw{animation-duration:.55s}
+
+/* ---- ร้านของสะสม / ตู้สุ่ม ---- */
+.mkgrid{display:grid;grid-template-columns:minmax(0,340px) minmax(0,1fr);gap:var(--s4);align-items:start}
+.coinrow{display:flex;align-items:center;gap:9px;justify-content:center;margin-bottom:var(--s3)}
+.coinrow .ic{width:26px;height:26px;color:var(--sun-deep)}
+.coinrow b{font-family:var(--fd);font-size:30px;color:var(--ink);line-height:1}
+.coinrow span{font-size:13px;color:var(--ink-2)}
+.rollout{display:grid;justify-items:center;gap:5px;text-align:center;padding:var(--s3) 0 var(--s4)}
+/* ตัวปรับขนาดชื่อ .xl ไม่ใช่ .big — .big เป็นคลาสปุ่มหลักของทั้งเว็บ (พื้นส้ม ขอบมน)
+   ใช้ชื่อนั้นแล้วของเล่นจะมีวงกลมส้มติดมาด้วย นี่คือกับดักชื่อคลาสชนกันแบบเดียวกับ .rec */
+.rollout .toy.xl{width:132px}
+.rollout b{font-family:var(--fd);font-size:17px;color:var(--ink)}
+.rollout>span{font-size:12.5px;color:var(--ink-2)}
+.rollout em{font-style:normal;font-size:13px;font-weight:600;margin-top:4px}
+.rollout.new em{color:var(--grass-deep)}
+.rollout.dup em{color:var(--sun-deep)}
+/* เด้งตอนได้ตัวใหม่ — key เปลี่ยนทุกครั้งที่หมุน DOM จึงถูกสร้างใหม่และเล่นซ้ำ */
+.rollout.new .toy.xl,.rollout.dup .toy.xl{animation:rollPop .55s cubic-bezier(.2,1.4,.4,1)}
+@keyframes rollPop{0%{transform:scale(.3) rotate(-14deg);opacity:0}100%{transform:none;opacity:1}}
+.rtag{display:inline-block;font-size:11px;font-weight:700;color:#fff;background:var(--rc);
+  border-radius:999px;padding:2px 12px;margin-top:2px;letter-spacing:.02em}
+/* วงแสงตอนเฉลย : ขีดสั้น ๆ กระจายออกแล้วจางหาย เล่นครั้งเดียว ไม่วนซ้ำ
+   ระดับยิ่งหายากยิ่งเห็นชัด แต่ไม่มีการกะพริบซ้ำ ๆ ตามเหตุผลด้านความปลอดภัยเดิม */
+.rayring{position:absolute;top:52px;left:50%;width:0;height:0;pointer-events:none}
+.rayring i{position:absolute;width:3px;height:16px;border-radius:2px;background:var(--sun);
+  transform:rotate(var(--a)) translateY(-40px);opacity:0;
+  animation:rayOut .7s ease-out forwards}
+.rollout.t4 .rayring i{background:var(--sun)}
+.rollout.t5 .rayring i{background:#FF9FD0}
+.rollout.t6 .rayring i{background:#E8543F;height:22px}
+.rollout.t1 .rayring,.rollout.t2 .rayring,.rollout.t3 .rayring{display:none}
+@keyframes rayOut{0%{opacity:0;transform:rotate(var(--a)) translateY(-14px) scaleY(.4)}
+  35%{opacity:.95}100%{opacity:0;transform:rotate(var(--a)) translateY(-74px) scaleY(1)}}
+.rollout{position:relative}
+
+/* ---- วงล้อตอนหมุน ---- */
+.reelbox{position:relative;width:150px;height:150px;overflow:hidden;border-radius:var(--rm);
+  background:var(--grape-soft);box-shadow:inset 0 0 0 3px rgba(108,92,231,.25)}
+.reelstrip{display:flex;flex-direction:column;
+  animation:reelSpin 1.5s cubic-bezier(.12,.62,.2,1) forwards}
+.reelcell{height:150px;flex:none;display:grid;place-items:center}
+.reelcell .toy{width:108px}
+/* เลื่อนขึ้นจนถึงช่องสุดท้าย ซึ่งคือตัวที่สุ่มได้จริง */
+@keyframes reelSpin{from{transform:translateY(0)}
+  to{transform:translateY(calc((var(--n) - 1) * -150px))}}
+/* ไล่เงาขอบบนล่าง ให้ดูเหมือนหน้าต่างวงล้อจริง */
+.reelfade{position:absolute;inset:0;pointer-events:none;border-radius:var(--rm);
+  background:linear-gradient(180deg,rgba(235,232,254,.95),rgba(235,232,254,0) 26%,
+    rgba(235,232,254,0) 74%,rgba(235,232,254,.95))}
+.rollout.spinning>span{color:var(--grape);font-weight:600}
+.rollout.idle{color:var(--ink-2);font-size:13px;gap:var(--s3)}
+.capsule{width:96px;height:96px;border-radius:50%;display:grid;place-items:center;
+  background:var(--grape-soft);color:var(--grape)}
+.capsule .ic{width:40px;height:40px}
+.mkhint{margin:var(--s2) 0 0;font-size:12px;color:var(--ink-2);text-align:center}
+.mkbook>b{display:block;font-family:var(--fd);font-size:15px;color:var(--ink);margin-bottom:var(--s3)}
+.mkbook>b i{font-style:normal;font-family:var(--fm);font-size:12px;color:var(--ink-3);margin-left:6px}
+.toygrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:var(--s2)}
+.toycard{position:relative;background:var(--line-2);border-radius:var(--rm);padding:var(--s2);
+  text-align:center;border:3px solid transparent}
+.toycard.have{background:#fff;border-color:var(--rc);box-shadow:0 3px 0 rgba(18,58,77,.1)}
+.toypic{height:78px;display:grid;place-items:center}
+.toypic .toy{width:66px}
+.toycard b{display:block;font-family:var(--fd);font-size:12.5px;color:var(--ink);line-height:1.4}
+.toycard span{display:block;font-size:10.5px;color:var(--ink-3);line-height:1.4;overflow-wrap:anywhere}
+.toycard.miss b,.toycard.miss span{color:var(--ink-3)}
+.qm{font-family:var(--fd);font-size:34px;color:var(--ink-3);opacity:.45}
+.dupn{position:absolute;top:6px;right:8px;font-style:normal;font-family:var(--fm);font-size:11px;
+  color:#fff;background:var(--grape);border-radius:999px;padding:1px 7px}
+/* แถบเหรียญบนหน้าสรุป */
+.coinwin{display:flex;align-items:center;gap:var(--s3);text-align:left;
+  background:var(--sun-soft);border-radius:var(--rm);padding:var(--s3);margin-top:var(--s4)}
+.coinwin .ic{width:30px;height:30px;color:var(--sun-deep);flex:none}
+.coinwin b{display:block;font-family:var(--fd);font-size:16px;color:var(--ink)}
+.coinwin span{display:block;font-size:12.5px;color:var(--ink-2);line-height:1.5}
+.mkgo{flex:none;background:#fff;border-radius:999px;padding:9px 16px;font-family:var(--fd);
+  font-weight:600;font-size:13px;color:var(--sun-deep);box-shadow:0 3px 0 rgba(200,122,0,.3)}
+@media(max-width:760px){.mkgrid{grid-template-columns:1fr}}
+
+/* ---- หรี่ฉากพื้นหลังตอนอยู่ในโซนเล่น ----
+   แผนที่ด่านมีฉากของตัวเองแล้ว และจอเกมต้องการให้เด็กโฟกัสที่เกม
+   ไม่ซ่อนทิ้ง เพราะการหายไปทั้งชั้นตอนเปลี่ยนหน้าจะเห็นเป็นการกระตุก */
+body[data-zone="play"] .hillprops{opacity:.4}
+body[data-zone="play"] .flock,body[data-zone="play"] .balloon{opacity:.25}
+body[data-zone="play"] .c5,body[data-zone="play"] .c6{opacity:.2}
+body[data-zone="play"] .groundprops{opacity:.4}
+body[data-zone="play"] .plane{opacity:.25}
+/* พลุถูกปิดสนิทระหว่างเล่น ไม่ใช่แค่หรี่ — ระหว่างทำภารกิจต้องไม่มีอะไรวาบขึ้นมาแย่งสายตา */
+body[data-zone="play"] .fw{display:none}
+/* ของเล่นสะสมหรี่ลงตอนเล่น แต่ไม่ซ่อน — เด็กสุ่มมาเพื่อได้เห็นมัน */
+body[data-zone="play"] .toylayer{opacity:.35}
+/* ท้องฟ้ากลางคืนกับพระจันทร์ยังเดินต่อในโซนเล่น เพราะเป็นการเปลี่ยนสีช้า ๆ ไม่รบกวน */
+/* หน้าสรุปเป็นช่วงฉลอง ไม่ใช่ช่วงเล่น จึงคืนฉากเต็มให้ ทั้งที่อยู่โซน play เหมือนกัน */
+body[data-screen="reward"] .hillprops,body[data-screen="reward"] .flock,
+body[data-screen="market"] .hillprops,body[data-screen="market"] .flock{opacity:1}
+body[data-screen="reward"] .balloon,body[data-screen="market"] .balloon{opacity:.9}
+body[data-screen="reward"] .c5,body[data-screen="market"] .c5{opacity:.5}
+body[data-screen="reward"] .c6,body[data-screen="market"] .c6{opacity:.38}
+body[data-screen="reward"] .groundprops,body[data-screen="market"] .groundprops{opacity:1}
+body[data-screen="reward"] .plane,body[data-screen="market"] .plane{opacity:.9}
+body[data-screen="reward"] .fw{display:block}
+/* ร้านคือที่ที่เด็กมาดูของสะสม จึงต้องเห็นตัวที่เดินอยู่เต็มที่ ห้ามหรี่
+   หน้าสรุปก็เช่นกัน เป็นช่วงฉลอง ไม่ใช่ช่วงเล่น */
+body[data-screen="reward"] .toylayer,body[data-screen="market"] .toylayer{opacity:1}
+.hillprops,.flock,.balloon,.c5,.c6,.groundprops,.plane{transition:opacity .5s ease}
 @keyframes drift{to{transform:translateX(calc(100vw + 250px))}}
 @keyframes wave{0%,100%{transform:translateY(0) scaleX(1)}50%{transform:translateY(-10px) scaleX(1.05)}}
 @keyframes bob{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-9px) scale(1.035)}}
@@ -68,6 +316,17 @@ body[data-face="pro"] .scene{display:none}
   html:not([data-motion="on"]) .c2{left:33%}
   html:not([data-motion="on"]) .c3{left:57%}
   html:not([data-motion="on"]) .c4{left:84%}
+  /* รถบนแผนที่ก็เหมือนเมฆ : ปิด animation แล้วจะเด้งกลับไปที่ x=0 คือติดขอบซ้าย
+     ต้องจอดไว้กลางถนนให้เห็นเต็มคัน */
+  html:not([data-motion="on"]) .sc-car{transform:translate(470px,-2px)}
+  html:not([data-motion="on"]) .c5{left:22%}
+  html:not([data-motion="on"]) .c6{left:68%}
+  /* เครื่องบินกับรถไถลข้ามจอ จึงต้องจอดไว้ในกรอบเหมือนเมฆ
+     ส่วนระบบกลางวัน–กลางคืนไม่ต้องมีสำรอง เพราะค้างที่ 0% = กลางวันอยู่แล้ว */
+  html:not([data-motion="on"]) .plane{left:14%}
+  html:not([data-motion="on"]) .gcar{left:38%}
+  /* ของเล่นทุกตัวจอดด้วยกฎเดียว โดยอ่านที่จอดจาก --park ของแต่ละตัว */
+  html:not([data-motion="on"]) .toywalk{transform:none;left:var(--park)}
 }
 /* กดปิดเอง = ปิดทุกกรณี แม้เครื่องจะไม่ได้ตั้ง reduced-motion ไว้ */
 html[data-motion="off"] *{animation:none!important;transition:none!important}
@@ -75,6 +334,12 @@ html[data-motion="off"] .c1{left:5%}
 html[data-motion="off"] .c2{left:33%}
 html[data-motion="off"] .c3{left:57%}
 html[data-motion="off"] .c4{left:84%}
+html[data-motion="off"] .sc-car{transform:translate(470px,-2px)}
+html[data-motion="off"] .c5{left:22%}
+html[data-motion="off"] .c6{left:68%}
+html[data-motion="off"] .plane{left:14%}
+html[data-motion="off"] .gcar{left:38%}
+html[data-motion="off"] .toywalk{transform:none;left:var(--park)}
 
 /* ---- ปุ่มสลับภาพเคลื่อนไหว ---- */
 .motionbtn{position:fixed;right:var(--s3);bottom:var(--s3);z-index:40;width:44px;height:44px;
@@ -308,6 +573,72 @@ body[data-face="pro"] .eyebrow{font-family:var(--fm);font-size:10px;font-weight:
   background:linear-gradient(180deg,#CFF1FF 0%,#E8FAFF 52%,#D6F3C4 53%,#B6E89A 100%);
   box-shadow:var(--pop-2);overflow:hidden}
 .roadsvg{position:absolute;inset:0;width:100%;height:100%}
+/* ---- ฉากบนแผนที่ : ต้นไม้ ดอกไม้ พุ่ม กระต่าย ผีเสื้อ เมฆ ----
+   สองชั้นคร่อมถนน : roadbg อยู่หลัง roadfg อยู่หน้า หมุดด่าน (z-index 2) อยู่บนสุด
+   pointer-events:none สำคัญ — ฉากคลุมทั้งกรอบ ถ้ารับคลิกจะบังปุ่มหมุดทั้งแผง */
+.roadbg,.roadfg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.roadbg{z-index:0}
+.roadfg{z-index:1}
+/* transform-box:fill-box จำเป็น — ค่าปริยายของ SVG คือ view-box ทำให้ 50% กลายเป็น
+   กลางกรอบ 1000x380 ไม่ใช่กลางตัวเอง ต้นไม้จะเหวี่ยงข้ามจอทั้งต้น
+   ชั้นนอกถือ translate/scale เป็น attribute ไว้ CSS จึงขยับได้โดยไม่ลบตำแหน่ง */
+.sc-sway,.sc-fly,.sc-drift,.sc-spinslow,.sc-hop,.sc-ear,.sc-wing,.sc-blink,.sc-breeze{
+  transform-box:fill-box}
+.sc-sway{transform-origin:bottom center;animation:scSway 5.4s ease-in-out infinite;
+  animation-delay:calc(var(--d)*-1s)}
+@keyframes scSway{0%,100%{transform:rotate(-1.4deg)}50%{transform:rotate(1.4deg)}}
+/* ลมพัดทั้งกลุ่ม : เลื่อนไม่กี่หน่วย ไม่หมุน (เหตุผลอยู่ในคอมเมนต์ของ scBreeze) */
+.sc-breeze{transform-origin:center;animation:scBreeze 6.4s ease-in-out infinite;
+  animation-delay:calc(var(--d)*-1s)}
+@keyframes scBreeze{0%,100%{transform:translate(-1.6px,0)}
+  50%{transform:translate(1.6px,-.8px)}}
+/* เมฆลอยขึ้นลงในที่ ไม่ไถลข้ามกรอบ ปิด animation แล้วจึงไม่หลุดออกไปนอกภาพ */
+.sc-drift{transform-origin:center;animation:scDrift 9s ease-in-out infinite;
+  animation-delay:calc(var(--d)*-1s)}
+@keyframes scDrift{0%,100%{transform:translate(-7px,0)}50%{transform:translate(7px,-5px)}}
+/* ผีเสื้อ : เส้นทางบินและจังหวะกระพือปีกแยกกันทั้งสามตัว
+   เคยใช้ keyframes ชุดเดียวแล้วเลื่อน animation-delay — ผลคือทุกตัวลากเส้นทางเดียวกัน
+   ต่างกันแค่เฟส ตาจับได้ทันทีว่าเป็นตัวเดียวกันสามตัว ดูแย่กว่าไม่ขยับเลย */
+.sc-fly{transform-origin:center}
+.sc-fly.f1{animation:scFly1 8.6s ease-in-out infinite}
+.sc-fly.f2{animation:scFly2 5.7s ease-in-out infinite}
+.sc-fly.f3{animation:scFly3 7.1s ease-in-out infinite -2.2s}
+@keyframes scFly1{0%,100%{transform:translate(-20px,7px)}
+  28%{transform:translate(-2px,-15px)}52%{transform:translate(24px,0)}
+  76%{transform:translate(6px,15px)}}
+@keyframes scFly2{0%,100%{transform:translate(10px,-5px)}
+  22%{transform:translate(-16px,9px)}48%{transform:translate(-6px,-16px)}
+  71%{transform:translate(19px,11px)}}
+@keyframes scFly3{0%,100%{transform:translate(-7px,16px) rotate(-4deg)}
+  38%{transform:translate(13px,-19px) rotate(5deg)}
+  64%{transform:translate(-11px,-5px) rotate(-2deg)}}
+.sc-wing{transform-origin:center}
+.sc-wing.w1{animation:scWing .30s ease-in-out infinite alternate}
+.sc-wing.w2{animation:scWing2 .21s ease-in-out infinite alternate}
+.sc-wing.w3{animation:scWing3 .38s ease-in-out infinite alternate}
+@keyframes scWing{from{transform:scaleX(1)}to{transform:scaleX(.62)}}
+@keyframes scWing2{from{transform:scaleX(.95)}to{transform:scaleX(.5)}}
+@keyframes scWing3{from{transform:scaleX(1)}to{transform:scaleX(.72)}}
+/* รถวิ่งข้ามเนิน : เลื่อนตามแนวนอน ส่วนขึ้นลงตามเนินฝังไว้ในคีย์เฟรมแล้ว
+   linear เท่านั้น — ease จะทำให้รถหยุดกึกที่ขอบจอทั้งสองข้าง */
+.sc-car{transform-box:fill-box;animation:scCar 19s linear infinite}
+@keyframes scCar{0%{transform:translate(-40px,4px)}
+  24%{transform:translate(230px,-8px)}50%{transform:translate(500px,0)}
+  76%{transform:translate(770px,-9px)}100%{transform:translate(1050px,-4px)}}
+.sc-spinslow{transform-origin:center;animation:scPetal 11s linear infinite;
+  animation-delay:calc(var(--d)*-1s)}
+@keyframes scPetal{0%{transform:translate(0,0) rotate(0)}
+  50%{transform:translate(14px,18px) rotate(180deg)}
+  100%{transform:translate(0,0) rotate(360deg)}}
+/* กระต่าย : ตัวเด้งช้า หูกระตุกเป็นจังหวะ ตากะพริบด้วย scaleY */
+.sc-hop{transform-origin:bottom center;animation:scHop 3.6s ease-in-out infinite}
+@keyframes scHop{0%,72%,100%{transform:translateY(0) scaleY(1)}
+  80%{transform:translateY(-7px) scaleY(1.04)}88%{transform:translateY(0) scaleY(.97)}}
+.sc-ear{transform-origin:bottom center;animation:scEar 4.8s ease-in-out infinite}
+.sc-ear.r{animation-delay:-2.4s}
+@keyframes scEar{0%,86%,100%{transform:rotate(0)}91%{transform:rotate(-11deg)}96%{transform:rotate(5deg)}}
+.sc-blink{transform-origin:center;animation:scBlink 5.2s steps(1,end) infinite}
+@keyframes scBlink{0%,94%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
 .roadedge{fill:none;stroke:#D89A3C;stroke-width:36;stroke-linecap:round;stroke-linejoin:round}
 .roadline{fill:none;stroke:#FFD489;stroke-width:27;stroke-linecap:round;stroke-linejoin:round}
 .roaddash{fill:none;stroke:#fff;stroke-width:3.5;stroke-linecap:round;stroke-dasharray:11 17;opacity:.95}
@@ -379,6 +710,81 @@ body[data-face="pro"] .eyebrow{font-family:var(--fm);font-size:10px;font-weight:
 .mini .em .ic{width:19px;height:19px}
 .mini b{display:block;font-size:13.5px;color:var(--ink);font-weight:600;font-family:var(--fd)}
 .mini span{font-size:12px;color:var(--ink-2)}
+
+/* ---- สถิติต่อด่าน : กราฟแท่งแนวนอน 5 ตัวชี้วัด ----
+   ชื่อคลาสขึ้นต้น .sb / .stat ทั้งหมด เพราะหน้าเด็กกับหน้านักกายภาพ
+   ใช้ stylesheet เดียวกัน ชื่อสั้น ๆ อย่าง .bar หรือ .best จะชนกันแน่
+
+   โครง : ทุกแถวเป็น grid สามคอลัมน์เท่ากัน [ชื่อ | พื้นที่กราฟ | ตัวเลข]
+   คอลัมน์กลางของทุกแถวจึงเริ่ม-จบตรงกัน เส้นศูนย์เดียวกัน และเส้นกริดต่อกันสนิท
+   --lw / --vw ต้องตรงกันระหว่าง .sbrow กับ .sbaxis ไม่งั้นแกนจะเลื่อนจากกริด */
+/* --gl (สีเส้นกริด) เป็นหมึกโปร่งแสง จึงถัดจากพื้นหนึ่งขั้นทั้งบนขาวและบนครีม
+   ถ้าใช้ --line ที่เป็นสีฟ้าอ่อน จะดูเพี้ยนบนการ์ดสีครีมของแผนที่ */
+.statcard{--surf:#fff;--gl:rgba(18,58,77,.14);--lw:minmax(92px,38%);--vw:34px}
+.questside .statcard{--surf:var(--sun-soft);--lw:minmax(74px,42%);--vw:26px;
+  background:var(--sun-soft);border-radius:var(--rm);padding:var(--s3)}
+.statcard>b{display:block;font-family:var(--fd);font-weight:700;font-size:14px;color:var(--ink)}
+.statcard>small{display:block;font-size:12px;color:var(--ink-2);line-height:1.7;margin-top:2px}
+.sbchart{margin:var(--s3) 0 0}
+.sbchart.compact{margin-top:var(--s2)}
+
+/* legend : มีสองสิ่งเข้ารหัสด้วยสี ตัวตนจึงต้องไม่ขึ้นกับสีอย่างเดียว */
+.sblegend{display:flex;flex-wrap:wrap;gap:var(--s3);margin-bottom:var(--s2);
+  font-size:11.5px;color:var(--ink-2)}
+.sblegend span{display:inline-flex;align-items:center;gap:6px}
+.sblegend .k{display:inline-block;flex:none}
+.sblegend .k.bar{width:14px;height:9px;border-radius:0 2px 2px 0;background:var(--grass-deep)}
+.sblegend .k.tick{width:3px;height:13px;border-radius:1px;background:var(--grape-deep)}
+
+.sbrow{display:grid;grid-template-columns:var(--lw) 1fr var(--vw);
+  column-gap:var(--s2);align-items:center}
+.sblab{padding:7px 0;min-width:0}
+.sblab b{display:block;font-size:13px;font-weight:600;color:var(--ink);line-height:1.45;
+  overflow-wrap:anywhere}
+/* ตัวย่อทางคลินิก (GAS/GSI/GES) ต่อท้ายชื่อไทย เด็กอ่านชื่อไทย ผู้ปกครองเห็นตัวย่อ */
+.sblab b i{font-style:normal;font-family:var(--fm);font-size:10px;color:var(--ink-3);
+  background:var(--line-2);border-radius:5px;padding:1px 5px;margin-left:4px;letter-spacing:.03em}
+.sblab small{display:block;font-size:11px;color:var(--ink-3);line-height:1.55;margin-top:1px}
+.sblab small .ic{width:12px;height:12px;vertical-align:-2px;color:var(--sun-deep)}
+
+/* พื้นที่กราฟ : ยืดเต็มความสูงแถวและไม่มี row-gap เส้นกริดจึงต่อเนื่องทุกแถว
+   สี่เส้นแรกมาจาก repeating-gradient (0/25/50/75) เส้น 100 วาดชิดขอบขวาแยกอีกชั้น
+   เส้นกริดเป็นเส้นทึบ 1px สีถัดจากพื้นหนึ่งขั้น ไม่ใช้เส้นประ */
+.sbplot{position:relative;align-self:stretch;display:flex;align-items:center;
+  background-image:linear-gradient(to left,var(--gl) 0 1px,transparent 1px),
+    repeating-linear-gradient(to right,var(--gl) 0 1px,transparent 1px 25%)}
+/* ไม่ตั้ง min-width : คะแนน 0 ต้องไม่มีแท่งเลย ถ้าใส่ขั้นต่ำไว้ 0 จะดูเหมือนมีค่า
+   ตัวเลขท้ายแถวบอกค่าอยู่แล้ว แถวจึงไม่หายไปแม้ไม่มีแท่ง */
+.sbbar{display:block;height:14px;background:var(--grass-deep);
+  border-radius:0 4px 4px 0}                    /* มนแค่ปลาย ฐานติดเส้นศูนย์เป็นมุมฉาก */
+.sbchart.compact .sbbar{height:11px}
+/* ขีดสถิติเดิม : ทับแท่งได้ จึงมีวงแหวนสีพื้น 2px กันจมหายไปในแท่ง */
+.sbtick{position:absolute;top:5px;bottom:5px;width:3px;border-radius:1px;
+  background:var(--grape-deep);box-shadow:0 0 0 2px var(--surf);transform:translateX(-1.5px)}
+.sbval{text-align:right;font-variant-numeric:tabular-nums}
+.sbval b{display:block;font-family:var(--fd);font-weight:700;font-size:15px;color:var(--ink);
+  line-height:1.3}
+.sbval s{display:block;text-decoration:none;font-size:11px;font-weight:600;line-height:1.4}
+.sbval s.up{color:var(--grass-deep)}
+.sbval s.down{color:var(--berry-deep)}
+.sbval s.same,.sbval s.first{color:var(--ink-3);font-weight:400}
+.sbchart.compact .sbval b{font-size:13.5px}
+/* ทำสถิติใหม่ : เปลี่ยนสีแท่ง แต่คู่กับไอคอนธงและข้อความเสมอ ไม่ใช่สีอย่างเดียว */
+.sbrow.rec-new .sbbar{background:var(--sun-deep)}
+.sbrow.rec-new .sblab small{color:var(--sun-deep);font-weight:600}
+/* ยังไม่มีข้อมูล : กริดยังอยู่แต่ไม่มีแท่ง เพราะ 0 คะแนนกับ "ไม่ได้วัด" ต่างกัน */
+.sbrow.nodata .sblab b{color:var(--ink-3);font-weight:400}
+.sbrow.nodata .sbval b{font-family:var(--fb);font-weight:400;color:var(--ink-3)}
+
+/* แกน : ต้องอยู่ในกล่องเดียวกับกราฟ ไม่ตั้งความสูงคงที่ที่ตัดแกนทิ้ง */
+.sbaxis{margin-top:5px;align-items:start}
+.sbticks{display:flex;justify-content:space-between;font-size:10px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums;border-top:1px solid var(--gl);padding-top:3px}
+.sbticks i{font-style:normal}                    /* <i> เป็นตัวเอนโดยปริยาย เลขแกนต้องตรง */
+@media(max-width:560px){
+  .statcard{--lw:minmax(80px,44%)}
+  .sblab b{font-size:12.5px}
+}
 
 /* ---- ต้นไม้ทักษะ ---- */
 .skilltree{position:relative;aspect-ratio:1/1;max-width:500px;margin:0 auto;background:#fff;
